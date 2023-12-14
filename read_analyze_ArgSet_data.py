@@ -7,8 +7,9 @@ from CAENReader import DataFile
 import sys # since argparse is unavailable
 
 # @jit(nopython=True)
-def process_over_entire_run(run_folder_name:str, channel_list:list, 
-                            segment_index_begin:int=0, segment_index_end:int=4, t0:int=2) -> dict:
+def process_over_entire_run(data_path:str, run_folder_name:str, 
+                            channel_list:list, segment_index_begin:int=0, 
+                            segment_index_end:int=4, t0:int=2) -> dict:
     '''
     Do baseline subtraction and integrate over the pulse window. 
     Return a dictionary of the format {'tr0': ndarray of integration values for channel 0}
@@ -39,7 +40,7 @@ def process_over_entire_run(run_folder_name:str, channel_list:list,
                                 }
     
     for i in range(segment_index_begin, segment_index_end+1):
-        binary_segment_name = f"data/{run_folder_name}/run0_raw_b0_seg{i}.bin"
+        binary_segment_name = f"{data_path}/{run_folder_name}/run0_raw_b0_seg{i}.bin"
         open_file = DataFile(binary_segment_name)
         while True:
             trigger_r = open_file.getNextTrigger()
@@ -63,7 +64,7 @@ def process_over_entire_run(run_folder_name:str, channel_list:list,
                                 
     return integration_vector_dict
 
-def plot_data(run_folder_name, integration_vector_dict:np.array, t0:int=2)->None:
+def plot_data(run_folder_name:str, integration_vector_dict:np.array, t0:int=2)->None:
     colour_ch = {'tr0': 'C0', 'tr1': 'C1', 'tr2': 'C2'}
     for ch_key in integration_vector_dict:
         if integration_vector_dict[ch_key].shape[0] > 0:
@@ -76,6 +77,7 @@ def plot_data(run_folder_name, integration_vector_dict:np.array, t0:int=2)->None
             plt.title('Histogram of charge values dervied from integrating ADC values over pulses')
             plt.suptitle(run_folder_name)
             plt.savefig(f"{run_folder_name}_hist_integration.pdf")
+            plt.close()
 
 # def argument_collector() ->argparse.Namespace:
 #     argParser = argparse.ArgumentParser()
@@ -92,14 +94,19 @@ def main() -> None:
     # process_over_entire_run(args.run_folder_name, args.channel_list) # this needs arguments from command line
     # integration_vector_dict = process_over_entire_run(args.run_folder_name, t0)
     ### using sys
+    data_path = '/work/sarthak/ArgSet/'
     run_folder_name = sys.argv[1]
     channel_list = eval(sys.argv[2])
     t0 = int(sys.argv[3])
-
-    print('Starting the processing')
-    integration_vector_dict = process_over_entire_run(run_folder_name, channel_list, t0)
-    print('Starting to plot')
-    plot_data(run_folder_name,integration_vector_dict, t0)
+    print('Data is being processed')
+    for run_nr in range(int(sys.argv[4]), int(sys.argv[5])+1):
+        run_folder_name = f"Run_{run_nr}"
+        print(f"processing Run {run_nr}")
+        integration_vector_dict = process_over_entire_run(data_path, 
+                                                        run_folder_name, 
+                                                        channel_list, t0)
+        print(f'Plotting {run_nr}')
+        plot_data(run_folder_name, integration_vector_dict, t0)
 
 if __name__ == "__main__":
     main()
