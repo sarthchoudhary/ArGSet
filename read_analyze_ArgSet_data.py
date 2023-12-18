@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('pdf')
 from CAENReader import DataFile 
-# import argparse
-import sys # since argparse is unavailable
+import argparse
+# import sys # alternative to argparse
 
 # @jit(nopython=True)
 def process_over_entire_run(data_path:str, run_folder_name:str, 
@@ -79,34 +79,41 @@ def plot_data(run_folder_name:str, integration_vector_dict:np.array, t0:int=2)->
             plt.savefig(f"{run_folder_name}_hist_integration.pdf")
             plt.close()
 
-# def argument_collector() ->argparse.Namespace:
-#     argParser = argparse.ArgumentParser()
-#     argParser.add_argument("-f", "--run_folder_name")
-#     argParser.add_argument("-c", "--channel_list")
-#     argParser.add_argument("-t0", "--t0", default=2, help='skip t0 initial bins')
-#     args = argParser.parse_args()
-#     return args
+def argument_collector() ->argparse.Namespace:
+    argParser = argparse.ArgumentParser()
+    argParser.add_argument("-p", "--data_path")
+    argParser.add_argument("-f", "--run_folder_name")
+    argParser.add_argument("-c", "--channel_list")
+    argParser.add_argument("-t0", "--t0", default=2, help='skip t0 initial bins')
+    args = argParser.parse_args()
+    return args
 
 def main() -> None:
     # t0 = 2
     ### using argparse
-    # args = argument_collector()
-    # process_over_entire_run(args.run_folder_name, args.channel_list) # this needs arguments from command line
-    # integration_vector_dict = process_over_entire_run(args.run_folder_name, t0)
-    ### using sys
-    data_path = '/work/sarthak/ArgSet/'
-    run_folder_name = sys.argv[1]
-    channel_list = eval(sys.argv[2])
-    t0 = int(sys.argv[3])
+    args = argument_collector()
+    channel_list = eval(args.channel_list)
     print('Data is being processed')
-    for run_nr in range(int(sys.argv[4]), int(sys.argv[5])+1):
-        run_folder_name = f"Run_{run_nr}"
-        print(f"processing Run {run_nr}")
-        integration_vector_dict = process_over_entire_run(data_path, 
-                                                        run_folder_name, 
-                                                        channel_list, t0)
-        print(f'Plotting {run_nr}')
-        plot_data(run_folder_name, integration_vector_dict, t0)
+    integration_vector_dict = process_over_entire_run(args.data_path, args.run_folder_name, channel_list)
+    print('Data is being plotted')
+    plot_data(args.run_folder_name, integration_vector_dict)
+
+    ### using sys
+    # data_path = '/work/sarthak/ArgSet/'
+    # run_folder_name = sys.argv[1]
+    # channel_list = eval(sys.argv[2])
+    # t0 = int(sys.argv[3])
+    # print('Data is being processed')
+    # for run_nr in range(int(sys.argv[4]), int(sys.argv[5])+1):
+    #     run_folder_name = f"Run_{run_nr}"
+    #     print(f"processing Run {run_nr}")
+    #     integration_vector_dict = process_over_entire_run(data_path, 
+    #                                                     run_folder_name, 
+    #                                                     channel_list, t0)
+    #     print(f'Plotting {run_nr}')
+    #     plot_data(run_folder_name, integration_vector_dict, t0)
 
 if __name__ == "__main__":
     main()
+
+# execute like this: python read_analyze_ArgSet_data.py -p /mnt/e/ArGSet/data/2023_12_15/  -f Run_12 -c [2]
