@@ -23,9 +23,9 @@ def process_over_entire_run(data_path:str, run_folder_name:str,
     pulse_integration_window_begin = 500
     pulse_integration_window_end = 700
     
-    integration_values_array_tr0 = np.array([])
-    integration_values_array_tr1 = np.array([])
-    integration_values_array_tr2 = np.array([])
+    # integration_values_array_tr0 = np.array([])
+    # integration_values_array_tr1 = np.array([])
+    # integration_values_array_tr2 = np.array([])
     
     # cntr = 0 # diag
     # not_4070_cntr = 0 # diag
@@ -76,7 +76,7 @@ def plot_data(run_folder_name:str, integration_vector_dict:np.array, t0:int=2)->
             plt.legend()
             plt.title('Histogram of charge values dervied from integrating ADC values over pulses')
             plt.suptitle(run_folder_name)
-            plt.savefig(f"{run_folder_name}_hist_integration.pdf")
+            plt.savefig(f"output_folder/{run_folder_name}_{ch_key}_hist_integration.pdf")
             plt.close()
 
 def argument_collector() ->argparse.Namespace:
@@ -116,4 +116,4 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 
-# execute like this: python read_analyze_ArgSet_data.py -p /mnt/e/ArGSet/data/2023_12_15/  -f Run_12 -c [2]
+# execute like this: python read_analyze_ArgSet_data.py -p /mnt/e/ArGSet/data/2023_12_15/  -f Run_16 -c [0,1,2]
