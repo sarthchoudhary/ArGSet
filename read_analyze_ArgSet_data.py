@@ -42,6 +42,7 @@ def process_over_entire_run(data_path:str, run_folder_name:str,
     for i in range(segment_index_begin, segment_index_end+1):
         binary_segment_name = f"{data_path}/{run_folder_name}/run0_raw_b0_seg{i}.bin"
         open_file = DataFile(binary_segment_name)
+        print('segment index:', i) #diag
         while True:
             trigger_r = open_file.getNextTrigger()
             if trigger_r is None:
@@ -78,6 +79,7 @@ def plot_data(run_folder_name:str, integration_vector_dict:np.array, t0:int=2)->
             plt.suptitle(run_folder_name)
             plt.savefig(f"output_folder/{run_folder_name}_{ch_key}_hist_integration.pdf")
             plt.close()
+            print('Plot saved in output_folder')
 
 def argument_collector() ->argparse.Namespace:
     argParser = argparse.ArgumentParser()
@@ -85,6 +87,7 @@ def argument_collector() ->argparse.Namespace:
     argParser.add_argument("-f", "--run_folder_name")
     argParser.add_argument("-c", "--channel_list")
     argParser.add_argument("-t0", "--t0", default=2, help='skip t0 initial bins')
+    argParser.add_argument("-e", "--segment_index_end", default=4, type=int)
     args = argParser.parse_args()
     return args
 
@@ -93,8 +96,11 @@ def main() -> None:
     ### using argparse
     args = argument_collector()
     channel_list = eval(args.channel_list)
+
     print('Data is being processed')
-    integration_vector_dict = process_over_entire_run(args.data_path, args.run_folder_name, channel_list)
+    integration_vector_dict = process_over_entire_run(args.data_path, 
+                                                      args.run_folder_name, channel_list,
+                                                       segment_index_end=args.segment_index_end)
     print('Data is being plotted')
     plot_data(args.run_folder_name, integration_vector_dict)
 
@@ -116,4 +122,5 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 
-# execute like this: python read_analyze_ArgSet_data.py -p /mnt/e/ArGSet/data/2023_12_15/  -f Run_16 -c [0,1,2]
+# execute like this: 
+# python read_analyze_ArgSet_data.py -p /mnt/e/ArGSet/data/2023_12_15/  -f Run_4 -c [0,1,2] -e 5
