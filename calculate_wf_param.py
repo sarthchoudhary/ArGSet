@@ -1,3 +1,5 @@
+### on chuck do this:
+### srun --mem=16G -A bejger-grp -p dgx --pty bash
 import numpy as np
 import matplotlib.pyplot as plt
 from pyreco.manager.manager import Manager # TODO: Can WFfilter work w/o it
@@ -19,11 +21,15 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str, \
     - tmp: save clean wfs as ndarray/pickle 
     - return a dataframe: {data filename, wf index, fit parameter values} 
    '''
-    event_catalogue = pd.read_pickle(catalogue_filename)
-    n_events = event_catalogue.shape[0]
+    if catalogue_filename.endswith('.npz'):
+        event_catalogue = np.load(catalogue_filename, allow_pickle=True)
+        n_events = event_catalogue['event_counter'].shape[0]
+    if catalogue_filename.endswith('.pkl'):
+        event_catalogue = pd.read_pickle(catalogue_filename)
+        n_events = event_catalogue.shape[0]
+    
+    wf = event_catalogue['wf']
     mfilter = WFFilter(pyreco_manager.config)
-    clean_cntr = 0
-    event_index = 0 
     clean_catalogue = pd.DataFrame(columns= [
                     # 'filename',
                     'event_index',
@@ -34,17 +40,17 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str, \
     print(colored(f"Finding clean waveforms", 'green', attrs = ['blink', 'bold']) )
 
     for event_index in trange(n_events):
-        og_wf = get_next_wf(event_catalogue, event_index)
+        og_wf = wf[event_index]
         flt = np.reshape(mfilter.numba_fast_filter(og_wf), newshape=og_wf.shape)
         mas = pyreco_manager.algos.running_mean(flt, gate=60)
-        flt_proc = np.copy(flt[n_channel])
+        flt_proc = np.copy(flt[n_channel])                  # TODO: all channels
         flt_proc = flt[n_channel] - mas[n_channel]
         flt_proc = np.where(flt_proc>0,flt_proc, 0)
         rms = pyreco_manager.algos.get_rms(flt_proc)
         flt_above_3rms = np.where(flt_proc > 3*rms, flt_proc, 0)
         # flt_above_3rms = np.where(flt_proc > 3.05*rms, flt_proc, 0)        # diag
         if len(find_peaks(flt_above_3rms)[0]) == 1:
-            clean_cntr += 1
+            # clean_cntr += 1
             clean_catalogue = clean_catalogue._append(
                 {
                     # 'filename':,
@@ -56,11 +62,6 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str, \
             ) # type: ignore
  
     return clean_catalogue
-
-def get_next_wf(event_catalogue: pd.DataFrame, df_index:int) -> np.ndarray:
-    ''' this functio is just a place holder.'''
-    wf = event_catalogue.iloc[df_index]['wf']
-    return wf
 
 def pulse_template(t, t0, sigma, tau, scale, baseline, K) -> np.ndarray:
     ''' 
@@ -94,16 +95,17 @@ def fit_template(clean_catalogue:pd.DataFrame, \
     - multiple processing can be performed in parallel
     '''
     fit_begin = 0
-    fit_param_df = pd.DataFrame(columns = ['fit_param_ch2']) #'fit_param_ch0', 'fit_param_ch1', 
+    fit_param_df = pd.DataFrame(columns = ['fit_param_ch2']) #TODO 'fit_param_ch0', 'fit_param_ch1', 
 
     print(colored(f"Commence fitting", 'green', attrs = ['blink', 'bold']) )
     
     for clean_index in trange(clean_catalogue.shape[0]): #TODO we can do split processing on file
-        wf = clean_catalogue.iloc[clean_index]['wf'] #[n_channel]
+        # wf = clean_catalogue.iloc[clean_index]['wf'] #[n_channel]
+        wf = clean_catalogue.iloc[clean_index]['wf'] #[n_channel] # development
         wf = transform_shift_wfs(wf)
         peak_loc = clean_catalogue.iloc[clean_index]['peak_loc']
         fit_end = wf[n_channel].shape[0]
-        x_values = np.arange(0,fit_end)
+        x_values = np.arange(fit_begin,fit_end)
         # mse_700_800 = np.std(wf[n_channel][700:800])/np.sqrt(wf[n_channel][700:800].shape[0]) # do this for each channel
         p0_input_ch2 = [peak_loc,   2.5,  80.0,   0.95, 0.0, 10000.0]
         fittedparameters_ch2, _pcov = curve_fit(pulse_template, x_values[fit_begin:fit_end], \
@@ -133,7 +135,8 @@ def main(n_channel:int, save_plot:bool=False, \
     - turn plotting into a function as well
     '''
     filename = '/work/sarthak/ArgSet/2024_Mar_27/midas/run00061.mid.lz4' #TODO: dynamic path
-    event_catalogue_filename = f'/home/sarthak/my_projects/argset/temp_folder/event_catalogue_run0061.pkl'
+    # event_catalogue_filename = f'/home/sarthak/my_projects/argset/temp_folder/event_catalogue_run0061.pkl'
+    event_catalogue_filename = f'/home/sarthak/my_projects/argset/data/event_catalogue_run00061.npz'
     outfile = 'temp_folder/temp_pyR00061_from_pickle'
     confile = 'argset.ini'
 
@@ -151,7 +154,8 @@ def main(n_channel:int, save_plot:bool=False, \
         print(colored(f"Commence plotting", 'green', attrs = ['blink', 'bold']))
         x_values = np.arange(0, 1750)
         for i in trange(plots_target):
-            wf = clean_catalogue_df.iloc[i]['wf'] # channel specific
+            wf = clean_catalogue_df.iloc[i]['wf'] #TODO: uniform use of WF
+            # x_values = np.arange(0, wf.shape[0]) #TODO: uniform use of WF
             plt.figure(i, figsize=(8,6))
             plt.title('fit vs data')
             plt.plot(wf[n_channel] + np.abs(np.min(wf[n_channel])), '.--', color='black', \
