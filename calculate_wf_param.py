@@ -6,7 +6,7 @@ from scipy.optimize import curve_fit
 from scipy.signal import find_peaks
 import pandas as pd
 from os import path
-from tqdm import tqdm
+from tqdm import trange
 from termcolor import colored
 
 def find_clean_wfs( pyreco_manager, catalogue_filename:str, \
@@ -21,7 +21,6 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str, \
    '''
     event_catalogue = pd.read_pickle(catalogue_filename)
     n_events = event_catalogue.shape[0]
-    progress_bar = tqdm(total = n_events, colour='blue')
     mfilter = WFFilter(pyreco_manager.config)
     clean_cntr = 0
     event_index = 0 
@@ -34,7 +33,7 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str, \
 
     print(colored(f"Finding clean waveforms", 'green', attrs = ['blink', 'bold']) )
 
-    for event_index in range(n_events):
+    for event_index in trange(n_events):
         og_wf = get_next_wf(event_catalogue, event_index)
         flt = np.reshape(mfilter.numba_fast_filter(og_wf), newshape=og_wf.shape)
         mas = pyreco_manager.algos.running_mean(flt, gate=60)
@@ -43,7 +42,7 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str, \
         flt_proc = np.where(flt_proc>0,flt_proc, 0)
         rms = pyreco_manager.algos.get_rms(flt_proc)
         flt_above_3rms = np.where(flt_proc > 3*rms, flt_proc, 0)
-        # flt_above_3rms = np.where(flt_proc > 2.5*rms, flt_proc, 0)        # diag
+        # flt_above_3rms = np.where(flt_proc > 3.05*rms, flt_proc, 0)        # diag
         if len(find_peaks(flt_above_3rms)[0]) == 1:
             clean_cntr += 1
             clean_catalogue = clean_catalogue._append(
@@ -56,8 +55,6 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str, \
                 }, ignore_index=True
             ) # type: ignore
  
-        progress_bar.update(0.05) #TODO improve progress bar
-    progress_bar.close()
     return clean_catalogue
 
 def get_next_wf(event_catalogue: pd.DataFrame, df_index:int) -> np.ndarray:
@@ -101,7 +98,7 @@ def fit_template(clean_catalogue:pd.DataFrame, \
 
     print(colored(f"Commence fitting", 'green', attrs = ['blink', 'bold']) )
     
-    for clean_index in tqdm(range(clean_catalogue.shape[0])): #TODO we can do split processing on file
+    for clean_index in trange(clean_catalogue.shape[0]): #TODO we can do split processing on file
         wf = clean_catalogue.iloc[clean_index]['wf'] #[n_channel]
         wf = transform_shift_wfs(wf)
         peak_loc = clean_catalogue.iloc[clean_index]['peak_loc']
@@ -153,7 +150,7 @@ def main(n_channel:int, save_plot:bool=False, \
     if save_plot:
         print(colored(f"Commence plotting", 'green', attrs = ['blink', 'bold']))
         x_values = np.arange(0, 1750)
-        for i in tqdm(range(plots_target)):
+        for i in trange(plots_target):
             wf = clean_catalogue_df.iloc[i]['wf'] # channel specific
             plt.figure(i, figsize=(8,6))
             plt.title('fit vs data')
