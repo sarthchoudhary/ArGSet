@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from pyreco.manager.manager import Manager # TODO: Can WFfilter w/o it
+from pyreco.manager.manager import Manager # TODO: Can WFfilter work w/o it
 from pyreco.reco.filtering import WFFilter
 from scipy.optimize import curve_fit
 from scipy.signal import find_peaks
@@ -10,9 +10,7 @@ from tqdm import tqdm
 from termcolor import colored
 
 def find_clean_wfs( pyreco_manager, catalogue_filename:str, \
-                     clean_target:int, n_channel:int = 2) -> pd.DataFrame:
-# def find_clean_wfs( catalogue_filename:str, \
-#                      clean_target:int, n_channel:int = 2) -> pd.DataFrame:
+                    n_channel:int = 2) -> pd.DataFrame:
     '''
     Uses ARMA filter to say whether a wf is clean or not!
     Steps:
@@ -22,31 +20,22 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str, \
     - return a dataframe: {data filename, wf index, fit parameter values} 
    '''
     event_catalogue = pd.read_pickle(catalogue_filename)
-    
-    progress_bar = tqdm(total = clean_target, colour='blue')
+    n_events = event_catalogue.shape[0]
+    progress_bar = tqdm(total = n_events, colour='blue')
     mfilter = WFFilter(pyreco_manager.config)
     clean_cntr = 0
     event_index = 0 
     clean_catalogue = pd.DataFrame(columns= [
                     # 'filename',
                     'event_index',
-                    # 'fit_param',
                     'wf'
     ]
     )
-    ### skip first two events in the file
-    ## nev_max = pyreco_manager.config('base', 'nevents', 'int')
-    ## nev_max = 2
-    # for nev, event in enumerate(pyreco_manager.midas):
-    #     if nev < 2: continue
-    #     if nev > 1: break
-    ### skip block ends
 
     print(colored(f"Finding clean waveforms", 'green', attrs = ['blink', 'bold']) )
-    # while clean_cntr < clean_target: #TODO 1. vectorization, 2. remove while
-    for event_index in range(event_catalogue.shape[0]):
-        # og_wf = read_wfs(pyreco_manager)
-        og_wf = get_next_wf(event_catalogue, event_index) # development
+
+    for event_index in range(n_events):
+        og_wf = get_next_wf(event_catalogue, event_index)
         flt = np.reshape(mfilter.numba_fast_filter(og_wf), newshape=og_wf.shape)
         mas = pyreco_manager.algos.running_mean(flt, gate=60)
         flt_proc = np.copy(flt[n_channel])
@@ -66,12 +55,8 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str, \
                     # prefers to take ceiling value over floor
                 }, ignore_index=True
             ) # type: ignore
-            # print(f"Clean found {clean_cntr}.") # diag
  
         progress_bar.update(0.05) #TODO improve progress bar
-        # event_index += 1
-        # if event_index%100 == 0: # diag
-        #     print(f'proceed to the Next event. {event_index}') # diag
     progress_bar.close()
     return clean_catalogue
 
@@ -79,32 +64,6 @@ def get_next_wf(event_catalogue: pd.DataFrame, df_index:int) -> np.ndarray:
     ''' this functio is just a place holder.'''
     wf = event_catalogue.iloc[df_index]['wf']
     return wf
-
-# def read_wfs(pyreco_manager:Manager) -> np.ndarray: #TODO this function has to go away
-#     '''
-#     for unexplained reason calling manager.midas skips one event. 
-#     We have to read the file in one go.
-#     Steps:
-#     - reads the next midas event
-#     - substract baseline value
-#     - return wfs as ndarray for single event 
-#     '''
-#     #TODO failsafe against empty events
-#     nev_lim = 0
-#     for nev, event in enumerate(pyreco_manager.midas):
-#         if nev > nev_lim: # diag
-#         # if nev > 0:
-#             break
-#         if event is None: # does this even do anything?
-#             nev_lim += 1 # diag
-#             continue
-#         if event.nchannels == 0:
-#             nev_lim += 1 # diag
-#             continue        
-#         wfs = event.adc_data
-#         for i,wf in enumerate(event.adc_data):
-#             wfs[i] = wf-event.adc_baseline[i]
-#     return wfs
 
 def pulse_template(t, t0, sigma, tau, scale, baseline, K) -> np.ndarray:
     ''' 
@@ -117,15 +76,10 @@ def pulse_template(t, t0, sigma, tau, scale, baseline, K) -> np.ndarray:
 def transform_shift_wfs(og_wfs:np.ndarray) -> tuple:
     ''' Transforms array. There should be a vectorized method for this.''' #TODO: vectorize
     wfs = np.copy(og_wfs)
-    # shift_values = {}
     for _c in range(wfs.shape[0]):
         a = np.min(og_wfs[_c])
         if a < 0:
             wfs[_c] = og_wfs[_c] + np.abs(a)
-        #     shift_values[str(_c)] = a
-        # else:
-        #     shift_values[str(_c)] = 0
-    # return (wfs, shift_values)
     return wfs
 
 def red_chisq(f_obs: np.ndarray, f_exp: np.ndarray, fittedparameters: np.ndarray) -> float:
@@ -144,10 +98,10 @@ def fit_template(clean_catalogue:pd.DataFrame, \
     '''
     fit_begin = 0
     fit_param_df = pd.DataFrame(columns = ['fit_param_ch2']) #'fit_param_ch0', 'fit_param_ch1', 
-    # for clean_index in tqdm(range(10)): # temp
+
     print(colored(f"Commence fitting", 'green', attrs = ['blink', 'bold']) )
     
-    for clean_index in tqdm(range(clean_catalogue.shape[0])): #TODO we can do multiprocessing
+    for clean_index in tqdm(range(clean_catalogue.shape[0])): #TODO we can do split processing on file
         wf = clean_catalogue.iloc[clean_index]['wf'] #[n_channel]
         wf = transform_shift_wfs(wf)
         peak_loc = clean_catalogue.iloc[clean_index]['peak_loc']
@@ -161,17 +115,15 @@ def fit_template(clean_catalogue:pd.DataFrame, \
                                     bounds = ([0, 0, 0, 0, -np.inf, 0], \
                                               [np.inf, 10, np.inf, 1, np.inf, np.inf])
                                     )
-        # fit_param_df.iloc[clean_index]['fit_param_ch2'] = fittedparameters_ch2
         fit_param_df = fit_param_df._append({'fit_param_ch2': fittedparameters_ch2,
                                              'chisqr_ch2': red_chisq(wf[n_channel], pulse_template(x_values, *fittedparameters_ch2), \
                                                                                    fittedparameters_ch2)
                                              }, ignore_index=True) # type: ignore #TODO: repeat all channels
-        #TODO add chisqr values to fit_param_df
     clean_catalogue = clean_catalogue.join(fit_param_df)
     return clean_catalogue
 
 def main(n_channel:int, save_plot:bool=False, \
-        clean_target:int=10, plots_target:int=10) ->None:
+        plots_target:int=10) ->None:
     '''
     Steps:
     - call read_wfsco
@@ -191,17 +143,13 @@ def main(n_channel:int, save_plot:bool=False, \
     cmdline_args = f'--config {confile} -o {outfile} -i {filename}'
     pyreco_manager = Manager( midas=True, cmdline_args=cmdline_args)
 
-    # clean_catalogue_df = find_clean_wfs(pyreco_manager, clean_target, n_channel) #TODO: remove
     clean_catalogue_df = find_clean_wfs(pyreco_manager, event_catalogue_filename, \
-                                        clean_target, n_channel)
-    # clean_catalogue_df = find_clean_wfs(event_catalogue_file, \
-    #                                 clean_target, n_channel)
+                                        n_channel)
     clean_catalogue_df = fit_template(clean_catalogue_df)
 
     output_path = path.join("temp_folder", "argset_wfs_catalogue_100_1000.pkl")
     clean_catalogue_df.to_pickle(output_path)
 
-    # if save_plot and (plots_target <= clean_target):
     if save_plot:
         print(colored(f"Commence plotting", 'green', attrs = ['blink', 'bold']))
         x_values = np.arange(0, 1750)
@@ -221,4 +169,4 @@ def main(n_channel:int, save_plot:bool=False, \
             plt.close()
 
 if __name__ == "__main__":
-    main(2, save_plot=True, clean_target=4999, plots_target=100)
+    main(2, save_plot=True, plots_target=100)
