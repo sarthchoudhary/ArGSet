@@ -16,12 +16,12 @@ import pickle
 
 def find_clean_wfs( pyreco_manager, catalogue_filename:str) -> dict[str, pd.DataFrame]: #TODO: work with different input format 
     '''
-    Uses ARMA filter to say whether a wf is clean or not! Works on all channels.
-    Steps:
-    - read a midas file 
+    Uses ARMA filter to detect number of true SiPM pulse peaks
+    - reads an event catalogue (either pkl or npz)
     - search clean events 
-    - tmp: save clean wfs as ndarray/pickle 
-    - return a dataframe: {data filename, wf index, fit parameter values} 
+    - creates a DataFrame for each channel: {event index, wf array, peak location} 
+    - returns dictionary of DataFrames
+    - writes dictionary to pickle file.
    '''
     if catalogue_filename.endswith('.npz'):
         event_catalogue = np.load(catalogue_filename, allow_pickle=True)
@@ -43,8 +43,8 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str) -> dict[str, pd.Data
     # event_df_ls = [event_df_ch0, event_df_ch1, event_df_ch2]
     print(colored(f"Finding clean waveforms", 'green', attrs = ['blink', 'bold']) )
 
-    # for event_index in trange(n_events, colour='blue'): #TODO: uncomment
-    for event_index in trange(100, colour='blue'): # diag
+    for event_index in trange(n_events, colour='blue'): #TODO: uncomment
+    # for event_index in trange(100, colour='blue'): # diag
         og_wf = wf[event_index]
         flt = np.reshape(mfilter.numba_fast_filter(og_wf), newshape=og_wf.shape) # TODO: variable names
         mas = pyreco_manager.algos.running_mean(flt, gate=60)
@@ -76,9 +76,9 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str) -> dict[str, pd.Data
         'ch1': event_df_ch1,
         'ch2': event_df_ch2,       
     }
-    ### save clean dict of df as pickle
+    ### save dict of df of clean event to pickle
     print(colored("saving clean catalogue dict as pickle to disk", color = 'blue') )
-    ## compression for pickle files. TODO: https://stackoverflow.com/questions/57983431/whats-the-most-space-efficient-way-to-compress-serialized-python-data
+    ## TODO: compression for pickle files. https://stackoverflow.com/questions/57983431/whats-the-most-space-efficient-way-to-compress-serialized-python-data
     try:
         clean_dict_path = path.join("temp_folder", "clean_catalogue_dict.pkl") ##TODO: dynamic
         with open(clean_dict_path, 'wb') as clean_dict_file:
@@ -113,11 +113,11 @@ def red_chisq(f_obs: np.ndarray, f_exp: np.ndarray, fittedparameters: np.ndarray
 
 def fit_template(clean_catalogue:pd.DataFrame, n_channel:int) -> pd.DataFrame:
     '''
-    fits template function to waveform.
-    - t0 is selected dynamically.
-    - add reduced chisqr to fit_catalogue
-    - multiple processing can be performed in parallel
-    - saves fit catalogue to disk. One catalogue per channel.
+    fits pulse template function to pulses:
+    - t0 is taken from peak location in input clean catalogue
+    - [NotImplemented] multiple processing can be performed in parallel
+    - returns DataFrame with fit parameters and reduced chisqr values
+    - saves fit catalogue to disk
     '''
     ch_ls = ['ch0', 'ch1', 'ch2']
     wf_str_ls = ['wf_ch0', 'wf_ch1', 'wf_ch2']
@@ -168,8 +168,10 @@ def fit_template(clean_catalogue:pd.DataFrame, n_channel:int) -> pd.DataFrame:
 
 def fit_all_channels(clean_catalogue_dict: dict, \
                      ch_number_ls:list[int]=[0,1,2]) -> dict:
-    '''Runs the fitter over all channels. Saves fit catalogue to disk.
-    ch_number_ls -> list of channels numbers to be processed.'''
+    '''
+    Runs the fitter over all channels. Saves fit catalogue to disk.
+    ch_number_ls -> list of channels numbers to be processed.
+    '''
 
     ch_name_dict ={0:'ch0', 1:'ch1', 2:'ch2'}
     fit_catalogue_dict = {}
@@ -177,7 +179,7 @@ def fit_all_channels(clean_catalogue_dict: dict, \
         ch = ch_name_dict[ch_i]
         fit_catalogue_dict[ch] = fit_template(clean_catalogue_dict[ch], ch_i)
     
-    ### save clean dict of df as pickle
+    ### save dict of df of fit results to pickle
     print(colored("saving fit catalogue dict as pickle to disk", color = 'blue') )
     try:
         fit_dict_path = path.join("temp_folder", "fit_catalogue_dict.pkl") ##TODO: dynamic
@@ -233,38 +235,19 @@ def main(ch_number_ls:list[int], plots_target:int, save_plots:bool=True) ->None:
     - make fit optional
     '''
     filename = '/work/sarthak/ArgSet/2024_Mar_27/midas/run00061.mid.lz4' #TODO: dynamic path
-    # event_catalogue_filename = f'/home/sarthak/my_projects/argset/temp_folder/event_catalogue_run0061.pkl'
-    event_catalogue_filename = f'/home/sarthak/my_projects/argset/data/event_catalogue_run00061.npz'
+    event_catalogue_filename = f'/home/sarthak/my_projects/argset/temp_folder/event_catalogue_run0061.pkl'
+    # event_catalogue_filename = f'/home/sarthak/my_projects/argset/data/event_catalogue_run00061.npz'
     outfile = 'temp_folder/temp_pyR00061_from_pickle'
     confile = 'argset.ini'
 
     cmdline_args = f'--config {confile} -o {outfile} -i {filename}'
     pyreco_manager = Manager( midas=True, cmdline_args=cmdline_args)
 
-    # clean_catalogue_df = find_clean_wfs(pyreco_manager, event_catalogue_filename, \
-    #                                     n_channel)
-    # clean_catalogue_df = fit_template(clean_catalogue_df)
-    # clean_catalogue_df.to_pickle(clean_catalogue_path)
-    
-    clean_catalogue_dict = find_clean_wfs(pyreco_manager, event_catalogue_filename)
-    
+    clean_catalogue_dict = find_clean_wfs(pyreco_manager, event_catalogue_filename)    
     fit_catalogue_dict = fit_all_channels(clean_catalogue_dict, ch_number_ls)
     
     if save_plots:
-        plotter_all(fit_catalogue_dict, ch_number_ls)
-
-    # fit_catalogue_dict = fit_all_channels(clean_catalogue_dict, ch_number_ls = [1, 2]) #ch_number_ls should be specified in main
-    
-    # # save fit df individually as pickle #TODO: remove
-    # try:
-    #     for ch_i, ch in enumerate([['ch0', 'ch1', 'ch2']]):
-    #         fit_catalogue_path = path.join("temp_folder", f"argset_fit_catalogue_ch_{ch}.pkl") #TODO: dynamic
-    #         fit_catalogue_dict[ch].to_pickle(fit_catalogue_path)
-    # except:
-    #     print(f"Error saving fit df individually as pickle")
+        plotter_all(fit_catalogue_dict, ch_number_ls)    
 
 if __name__ == "__main__":
-    # main(2, save_plot=True, plots_target=100)
-    # main(2, False)
-    # main([1, 2], False)
-    main([2], plots_target=4)
+    main([2], plots_target=100)
