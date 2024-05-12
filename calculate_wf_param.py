@@ -15,10 +15,9 @@ import h5py as h5
 
 import pickle # dev
 
-def find_clean_wfs( pyreco_manager, catalogue_filename:str, \
-                    n_channel:int = 2) -> dict[str, pd.DataFrame]: #TODO: work with different input format 
+def find_clean_wfs( pyreco_manager, catalogue_filename:str) -> dict[str, pd.DataFrame]: #TODO: work with different input format 
     '''
-    Uses ARMA filter to say whether a wf is clean or not!
+    Uses ARMA filter to say whether a wf is clean or not! Works on all channels.
     Steps:
     - read a midas file 
     - search clean events 
@@ -56,7 +55,7 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str, \
     print(colored(f"Finding clean waveforms", 'green', attrs = ['blink', 'bold']) )
 
     # for event_index in trange(n_events, colour='blue'): #TODO: uncomment
-    for event_index in trange(1000, colour='blue'): # diag
+    for event_index in trange(100, colour='blue'): # diag
         og_wf = wf[event_index]
         flt = np.reshape(mfilter.numba_fast_filter(og_wf), newshape=og_wf.shape) # TODO: variable names
         mas = pyreco_manager.algos.running_mean(flt, gate=60)
@@ -89,7 +88,7 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str, \
                     # prefers to take ceiling value over floor
                 }
                 # event_df_ls[ch] = event_df_ls[ch]._append(event_dict, ignore_index = True) # type: ignore
-                if ch == 0:
+                if ch == 0: #TODO: replace with match-case https://www.freecodecamp.org/news/python-switch-statement-switch-case-example/
                     event_df_ch0 = event_df_ch0._append(event_dict, ignore_index=True) # type: ignore
                 if ch == 1:
                     event_df_ch1 = event_df_ch1._append(event_dict, ignore_index=True) # type: ignore
@@ -105,7 +104,7 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str, \
     ### SYNTAX : a_df.join(b_df.set_index('index'), on= 'index', how='outer')
 
     # save clean df's as h5 data set
-    print(colored("saving clean_catalogue as h5 to disk", color='magenta'))
+    print(colored("saving clean catalogue as h5 to disk", color='magenta'))
     try:
         clean_catalogue_path = path.join("temp_folder", "argset_clean_catalogue.h5") #TODO: dynamic
         with h5.File(clean_catalogue_path, 'w') as clean_catalogue:
@@ -114,8 +113,9 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str, \
             clean_catalogue.create_dataset('clean_ch2', data = clean_catalogue_dict['ch2'], compression="gzip")
             # for ch_i, ch in enumerate([['ch0', 'ch1', 'ch2']]):
                 # clean_catalogue.create_dataset(f'clean_{ch}', data = clean_catalogue_dict[ch], compression="gzip")
-    except:
+    except Exception as e:
         print(colored(f"Error saving clean df's as h5 data set", color='red'))
+        print(colored(e, color='red'))
     return clean_catalogue_dict
 
 def pulse_template(t, t0, sigma, tau, scale, baseline, K) -> np.ndarray:
@@ -150,9 +150,9 @@ def fit_template(fit_catalogue:pd.DataFrame, n_channel:int) -> pd.DataFrame:
     - multiple processing can be performed in parallel
     '''
     ch_ls = ['ch0', 'ch1', 'ch2']
-    ch_str = ch_ls[n_channel]
     wf_str_ls = ['wf_ch0', 'wf_ch1', 'wf_ch2']
     peak_str_ls = ['peak_ch0', 'peak_ch1', 'peak_ch2']
+    ch_str = ch_ls[n_channel]
     wf_ch = wf_str_ls[n_channel]
     peak_ch = peak_str_ls[n_channel]
     fit_begin = 0
@@ -191,34 +191,45 @@ def fit_template(fit_catalogue:pd.DataFrame, n_channel:int) -> pd.DataFrame:
                                             'chisqr': red_chisq(wf, pulse_template(x_values, *fittedparameters), \
                                                                                 fittedparameters)
                                                 }, ignore_index=True) # type: ignore #TODO: repeat all channels
-        except RuntimeError:
+        except RuntimeError as e:
             # fittedparameters = None
             fit_param_df = fit_param_df._append({   'fit_param': None,
                                                     'chisqr': None,
             }, ignore_index = True) # type: ignore
             print(colored(f'RuntimeError occured while cueve fitting on {ch_str} for clean index {clean_index}', color='red'))
- 
+            print(colored(e, color='red'))
     
     return fit_catalogue
-def fit_all_channels(clean_catalogue_dict: dict) -> dict:
-    fit_catalogue_dict = {} 
-    ch_str_ls = ['ch0', 'ch1', 'ch2']
-    for ch_i, ch in enumerate(ch_str_ls):
+def fit_all_channels(clean_catalogue_dict: dict, \
+                     ch_number_ls:list[int]=[0,1,2]) -> dict:
+    '''Runs the fitter over all channels. Saves fit catalogue to disk.'''
+    # ch_name_ls=['ch0', 'ch1', 'ch2']
+    ch_name_dict ={0:'ch0', 1:'ch1', 2:'ch2'}
+    fit_catalogue_dict = {}
+    for ch_i in ch_number_ls:
+        ch = ch_name_dict[ch_i]
+    # for ch_i, ch in enumerate(ch_name_ls):
         fit_catalogue_dict[ch] = fit_template(clean_catalogue_dict[ch], ch_i)
     
     # save fit df's as h5 data set
-    print(colored("saving clean_catalogue as h5 to disk", color='magenta'))
+    print(colored("saving fit catalogue as h5 to disk", color='magenta'))
     try:
         fit_catalogue_path = path.join("temp_folder", "argset_fit_catalogue.h5") #TODO: dynamic
         with h5.File(fit_catalogue_path, 'w') as fit_catalogue:
-            for ch_i, ch in enumerate([['ch0', 'ch1', 'ch2']]):
+            # fit_catalogue.create_dataset(f'fit_ch0', data = fit_catalogue_dict['ch0'], compression="gzip")
+            # fit_catalogue.create_dataset(f'fit_ch1', data = fit_catalogue_dict['ch1'], compression="gzip")
+            # for ch_i, ch in enumerate([['ch0', 'ch1', 'ch2']]):
+            for ch_i in ch_number_ls:
+                ch = ch_name_dict[ch_i]
                 fit_catalogue.create_dataset(f'fit_{ch}', data = fit_catalogue_dict[ch], compression="gzip")
-    except:
+    except Exception as e:
         print(colored(f"Error saving fit df's as h5 data set", color='red'))
-    
+        print(colored(e, color='red'))
+
     return fit_catalogue_dict
 
-def main(n_channel:int, save_plot:bool=False, \
+# def main(n_channel:int, save_plot:bool=False, \
+def main(ch_number_ls:list[int], save_plot:bool=False, \
         plots_target:int=10) ->None:
     '''
     Steps:
@@ -244,10 +255,9 @@ def main(n_channel:int, save_plot:bool=False, \
     # clean_catalogue_df = fit_template(clean_catalogue_df)
     # clean_catalogue_df.to_pickle(clean_catalogue_path)
     
-    clean_catalogue_dict = find_clean_wfs(pyreco_manager, event_catalogue_filename, \
-                                    n_channel)
+    clean_catalogue_dict = find_clean_wfs(pyreco_manager, event_catalogue_filename)
     
-    fit_catalogue_dict = fit_all_channels(clean_catalogue_dict)
+    fit_catalogue_dict = fit_all_channels(clean_catalogue_dict, ch_number_ls = [1, 2])
     
     # # save fit df individually as pickle
     # try:
@@ -267,14 +277,15 @@ def main(n_channel:int, save_plot:bool=False, \
     #     print(f"Error saving fit df's as h5 data set")
     
     # save clean dict of df as pickle
-    print(colored("saving clean_catalogue dict as pickle to disk", color = 'blue') )
+    print(colored("saving clean catalogue dict as pickle to disk", color = 'blue') )
     try:
         clean_dict_path = path.join("temp_folder", "argset_clean_dict_3Ch.pkl") #diag
         with open(clean_dict_path, 'wb') as dict_file: # diag
             pickle.dump(clean_catalogue_dict, dict_file, pickle.HIGHEST_PROTOCOL)
-    except:
+    except Exception as e:
         print(colored('Error saving clean dict of df as pickle', color='red'))
-
+        print(colored(e, color='red'))
+        
     if save_plot: #TODO: plotting has to change as well because df is now a dict of df
         print(colored(f"Commence plotting", 'green', attrs = ['blink', 'bold'])) #TODO: plot function
         x_values = np.arange(0, 1750) # TODO: dynamic
@@ -296,4 +307,5 @@ def main(n_channel:int, save_plot:bool=False, \
 
 if __name__ == "__main__":
     # main(2, save_plot=True, plots_target=100)
-    main(2, False)
+    # main(2, False)
+    main([1, 2], False)
