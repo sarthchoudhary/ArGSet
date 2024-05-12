@@ -3,6 +3,7 @@
 ### srun --mem=16G -A bejger-grp -p dgx --pty bash
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.offsetbox import AnchoredText
 from pyreco.manager.manager import Manager # TODO: Can WFfilter work w/o it
 from pyreco.reco.filtering import WFFilter
 from scipy.optimize import curve_fit
@@ -43,8 +44,8 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str) -> dict[str, pd.Data
     # event_df_ls = [event_df_ch0, event_df_ch1, event_df_ch2]
     print(colored(f"Finding clean waveforms", 'green', attrs = ['blink', 'bold']) )
 
-    for event_index in trange(n_events, colour='blue'): #TODO: uncomment
-    # for event_index in trange(100, colour='blue'): # diag
+    # for event_index in trange(n_events, colour='blue'): #TODO: uncomment
+    for event_index in trange(100, colour='blue'): # diag
         og_wf = wf[event_index]
         flt = np.reshape(mfilter.numba_fast_filter(og_wf), newshape=og_wf.shape) # TODO: variable names
         mas = pyreco_manager.algos.running_mean(flt, gate=60)
@@ -170,7 +171,7 @@ def fit_all_channels(clean_catalogue_dict: dict, \
                      ch_number_ls:list[int]=[0,1,2]) -> dict:
     '''
     Runs the fitter over all channels. Saves fit catalogue to disk.
-    ch_number_ls -> list of channels numbers to be processed.
+    ch_number_ls -> list of channel numbers to be processed.
     '''
 
     ch_name_dict ={0:'ch0', 1:'ch1', 2:'ch2'}
@@ -214,6 +215,10 @@ def plotter_all(fit_catalogue_dict: dict, ch_number_ls: list[int], plots_target:
             fittedparameters = fit_catalogue.iloc[plot_index]['fit_param']
             plt.plot(pulse_template(x_values, *fittedparameters), \
         '-', color='red', label=f'template fit on {ch_str}')
+            text_in_box = AnchoredText(f"reduced chisqr = {fit_catalogue.iloc[plot_index]['chisqr']:.2f}", \
+                                       loc='upper left')
+            ax = plt.gca()
+            ax.add_artist(text_in_box)
             plt.legend()
             plt.savefig(f'temp_folder/midas_wf_{ch_str}_{event_counter}.pdf')
             plt.close()
@@ -235,7 +240,7 @@ def main(ch_number_ls:list[int], plots_target:int, save_plots:bool=True) ->None:
     - make fit optional
     '''
     filename = '/work/sarthak/ArgSet/2024_Mar_27/midas/run00061.mid.lz4' #TODO: dynamic path
-    event_catalogue_filename = f'/home/sarthak/my_projects/argset/temp_folder/event_catalogue_run0061.pkl'
+    event_catalogue_filename = f'/home/sarthak/my_projects/argset/data/event_catalogue_run0061.pkl'
     # event_catalogue_filename = f'/home/sarthak/my_projects/argset/data/event_catalogue_run00061.npz'
     outfile = 'temp_folder/temp_pyR00061_from_pickle'
     confile = 'argset.ini'
@@ -247,7 +252,7 @@ def main(ch_number_ls:list[int], plots_target:int, save_plots:bool=True) ->None:
     fit_catalogue_dict = fit_all_channels(clean_catalogue_dict, ch_number_ls)
     
     if save_plots:
-        plotter_all(fit_catalogue_dict, ch_number_ls)    
+        plotter_all(fit_catalogue_dict, ch_number_ls, plots_target)
 
 if __name__ == "__main__":
-    main([2], plots_target=100)
+    main(ch_number_ls = [1, 2], plots_target=5)
