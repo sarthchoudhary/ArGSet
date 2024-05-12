@@ -78,6 +78,7 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str) -> dict[str, pd.Data
     }
     ### save clean dict of df as pickle
     print(colored("saving clean catalogue dict as pickle to disk", color = 'blue') )
+    ## compression for pickle files. TODO: https://stackoverflow.com/questions/57983431/whats-the-most-space-efficient-way-to-compress-serialized-python-data
     try:
         clean_dict_path = path.join("temp_folder", "clean_catalogue_dict.pkl") ##TODO: dynamic
         with open(clean_dict_path, 'wb') as clean_dict_file:
@@ -151,6 +152,7 @@ def fit_template(clean_catalogue:pd.DataFrame, n_channel:int) -> pd.DataFrame:
                                         )
             fit_catalogue = fit_catalogue._append({
                                             'event_counter': clean_catalogue.iloc[clean_index]['event_counter'],
+                                            wf_ch : wf,
                                             'fit_param': fittedparameters,
                                             'chisqr': red_chisq(wf, pulse_template(x_values, *fittedparameters), \
                                                                                 fittedparameters)
@@ -186,8 +188,41 @@ def fit_all_channels(clean_catalogue_dict: dict, \
         print(colored(f'>>> {e}', color='red'))
     return fit_catalogue_dict
 
-def main(ch_number_ls:list[int], save_plot:bool=False, \
-        plots_target:int=10) ->None:
+def plotter_all(fit_catalogue_dict: dict, ch_number_ls: list[int], plots_target:int = 10) -> None:
+    ''' Loops plotting over ch_number_ls '''
+
+    def plotter_ch(fit_catalogue:pd.DataFrame, channel_number:int, plots_target:int) -> None:
+        ''' Plot waveform and fit function for individual channel. Quits once plots_target is met.'''
+        
+        ch_ls = ['ch0', 'ch1', 'ch2']
+        wf_str_ls = ['wf_ch0', 'wf_ch1', 'wf_ch2']
+        ch_str = ch_ls[channel_number]
+        wf_ch = wf_str_ls[channel_number]
+        print(colored(f"Commence plotting: {ch_str}...", 'green', attrs = ['blink', 'bold']))
+        # x_values = np.arange(0, 1750) # TODO: dynamic
+        plots_target = min(plots_target, fit_catalogue.shape[0])
+        for plot_index in trange(plots_target, colour='blue'):
+            event_counter = fit_catalogue.iloc[plot_index]['event_counter']
+            wf = fit_catalogue.iloc[plot_index][wf_ch]
+            x_values = np.arange(0, wf.shape[0])
+            plt.figure(plot_index, figsize=(8,6))
+            plt.title(f"{ch_str} data vs fit") 
+            plt.plot(wf + np.abs(np.min(wf)), '.--', color='black', \
+                        label=f'data : {ch_str}')
+            fittedparameters = fit_catalogue.iloc[plot_index]['fit_param']
+            plt.plot(pulse_template(x_values, *fittedparameters), \
+        '-', color='red', label=f'template fit on {ch_str}')
+            plt.legend()
+            plt.savefig(f'temp_folder/midas_wf_{ch_str}_{event_counter}.pdf')
+            plt.close()
+
+    ch_ls = ['ch0', 'ch1', 'ch2']
+
+    for ch_number in ch_number_ls:
+        ch_str = ch_ls[ch_number]
+        plotter_ch(fit_catalogue_dict[ch_str], ch_number, plots_target)
+
+def main(ch_number_ls:list[int], plots_target:int, save_plots:bool=True) ->None:
     '''
     Steps:
     - call find_clean_wfs
@@ -196,7 +231,6 @@ def main(ch_number_ls:list[int], save_plot:bool=False, \
     - saves DataFrame as pickle file 
     - finally need another function for creating all histogram requested by Marcin 
     - make fit optional
-    - turn plotting into a function as well
     '''
     filename = '/work/sarthak/ArgSet/2024_Mar_27/midas/run00061.mid.lz4' #TODO: dynamic path
     # event_catalogue_filename = f'/home/sarthak/my_projects/argset/temp_folder/event_catalogue_run0061.pkl'
@@ -215,6 +249,10 @@ def main(ch_number_ls:list[int], save_plot:bool=False, \
     clean_catalogue_dict = find_clean_wfs(pyreco_manager, event_catalogue_filename)
     
     fit_catalogue_dict = fit_all_channels(clean_catalogue_dict, ch_number_ls)
+    
+    if save_plots:
+        plotter_all(fit_catalogue_dict, ch_number_ls)
+
     # fit_catalogue_dict = fit_all_channels(clean_catalogue_dict, ch_number_ls = [1, 2]) #ch_number_ls should be specified in main
     
     # # save fit df individually as pickle #TODO: remove
@@ -225,27 +263,8 @@ def main(ch_number_ls:list[int], save_plot:bool=False, \
     # except:
     #     print(f"Error saving fit df individually as pickle")
 
-    if save_plot: #TODO: plotting has to change as well because df is now a dict of df
-        print(colored(f"Commence plotting", 'green', attrs = ['blink', 'bold'])) #TODO: plot function
-        x_values = np.arange(0, 1750) # TODO: dynamic
-        for i in trange(plots_target):
-            wf = clean_catalogue_df.iloc[i]['wf'] #TODO: uniform use of WF
-            # x_values = np.arange(0, wf.shape[0]) #TODO: uniform use of WF
-            plt.figure(i, figsize=(8,6))
-            plt.title('fit vs data')
-            plt.plot(wf[n_channel] + np.abs(np.min(wf[n_channel])), '.--', color='black', \
-                     label=f'data Ch: {n_channel}')
-            
-            fittedparameters_ch2 = clean_catalogue_df.iloc[i]['fit_param_ch2']
-            
-            plt.plot(pulse_template(x_values, *fittedparameters_ch2), \
-        '-', color='red', label='template fit on Ch_2')
-            plt.legend()
-            plt.savefig(f'temp_folder/midas_wf_{i}.pdf')
-            plt.close()
-
 if __name__ == "__main__":
     # main(2, save_plot=True, plots_target=100)
     # main(2, False)
     # main([1, 2], False)
-    main([2], False)
+    main([2], plots_target=4)
