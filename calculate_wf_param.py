@@ -1,6 +1,6 @@
-### on chuck do this:
+### resources intensive script: needs 16GB minimum to run
+### for interactive shell do this on chuck:
 ### srun --mem=16G -A bejger-grp -p dgx --pty bash
-from ast import Dict
 import numpy as np
 import matplotlib.pyplot as plt
 from pyreco.manager.manager import Manager # TODO: Can WFfilter work w/o it
@@ -11,9 +11,10 @@ import pandas as pd
 from os import path
 from tqdm import trange
 from termcolor import colored
-import h5py as h5
+import pickle
+# from ast import Dict
+# import h5py as h5
 
-import pickle # dev
 
 def find_clean_wfs( pyreco_manager, catalogue_filename:str) -> dict[str, pd.DataFrame]: #TODO: work with different input format 
     '''
@@ -49,13 +50,16 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str) -> dict[str, pd.Data
     wf_str_ls = ['wf_ch0', 'wf_ch1', 'wf_ch2']
     peak_str_ls = ['peak_ch0', 'peak_ch1', 'peak_ch2']
     event_df_ch0 = pd.DataFrame( columns = ['event_counter', 'wf_ch0', 'peak_ch0'])
+    # event_df_ch0 = pd.DataFrame( {'event_counter': pd.Series(dtype=int), 
+    #                             'wf_ch0': pd.Series(dtype=object), 
+    #                             'peak_ch0':pd.Series(dtype=float)})
     event_df_ch1 = pd.DataFrame( columns = ['event_counter', 'wf_ch1', 'peak_ch1'])
     event_df_ch2 = pd.DataFrame( columns = ['event_counter', 'wf_ch2', 'peak_ch2'])
-    event_df_ls = [event_df_ch0, event_df_ch1, event_df_ch2]
+    # event_df_ls = [event_df_ch0, event_df_ch1, event_df_ch2]
     print(colored(f"Finding clean waveforms", 'green', attrs = ['blink', 'bold']) )
 
-    # for event_index in trange(n_events, colour='blue'): #TODO: uncomment
-    for event_index in trange(100, colour='blue'): # diag
+    for event_index in trange(n_events, colour='blue'): #TODO: uncomment
+    # for event_index in trange(100, colour='blue'): # diag
         og_wf = wf[event_index]
         flt = np.reshape(mfilter.numba_fast_filter(og_wf), newshape=og_wf.shape) # TODO: variable names
         mas = pyreco_manager.algos.running_mean(flt, gate=60)
@@ -72,6 +76,9 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str) -> dict[str, pd.Data
         flt_above_3rms = np.where(flt_proc > 3*rms, flt_proc, 0)
         ## flt_above_3rms = np.where(flt_proc > 3.05*rms, flt_proc, 0)        # diag
         #TODO all channels
+        # event_counter_arr = []
+        # wf_arr_ls = []
+        # peak_ls = []
         for ch in range(3): # problematic
             # if len(find_peaks(flt_above_3rms[ch])[0]) == 1:
             if len(find_peaks(flt_above_3rms[ch])[0]) == 1: # single peak selector
@@ -82,18 +89,25 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str) -> dict[str, pd.Data
                     'event_counter': event_index+1,
                     # 'wf': og_wf,
                     wf_str_ls[ch]: og_wf[ch],
+                    # wf_str_ls[ch]: np.array(og_wf[ch]),
                     # optional: separate wf for each channel
                     # 'peak_loc': np.ceil(np.mean(np.where(flt_above_3rms[ch] != 0))),
                     peak_str_ls[ch]: np.ceil(np.mean(np.where(flt_above_3rms[ch] != 0))),
                     # prefers to take ceiling value over floor
                 }
                 # event_df_ls[ch] = event_df_ls[ch]._append(event_dict, ignore_index = True) # type: ignore
+
+                # event_counter_arr.append(event_index+1) ## dev
+                # wf_arr_ls.append(og_wf[ch])
+                # peak_ls.append( np.ceil(np.mean(np.where(flt_above_3rms[ch] != 0))) )
+
                 if ch == 0: #TODO: replace with match-case https://www.freecodecamp.org/news/python-switch-statement-switch-case-example/
                     event_df_ch0 = event_df_ch0._append(event_dict, ignore_index=True) # type: ignore
                 if ch == 1:
                     event_df_ch1 = event_df_ch1._append(event_dict, ignore_index=True) # type: ignore
                 if ch == 2:
                     event_df_ch2 = event_df_ch2._append(event_dict, ignore_index=True) # type: ignore    
+
     # return clean_catalogue
     clean_catalogue_dict = {
         'ch0': event_df_ch0,
@@ -103,19 +117,41 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str) -> dict[str, pd.Data
     ### optionally: join three data frames as clean catalogue
     ### SYNTAX : a_df.join(b_df.set_index('index'), on= 'index', how='outer')
 
-    # save clean df's as h5 data set
-    print(colored("saving clean catalogue as h5 to disk", color='magenta'))
+    # save clean df's as h5 data set ##TODO: remove
+    # print(colored("saving clean catalogue as h5 to disk", color='magenta'))
+    # try:
+    #     clean_catalogue_path = path.join("temp_folder", "argset_clean_catalogue.h5")
+    #     with h5.File(clean_catalogue_path, 'w') as clean_catalogue:
+    #         clean_catalogue.create_dataset('clean_ch0', data = clean_catalogue_dict['ch0'], compression="gzip")
+    #         clean_catalogue.create_dataset('clean_ch1', data = clean_catalogue_dict['ch1'], compression="gzip")
+    #         clean_catalogue.create_dataset('clean_ch2', data = clean_catalogue_dict['ch2'], compression="gzip")
+    #         # for ch_i, ch in enumerate([['ch0', 'ch1', 'ch2']]):
+    #             # clean_catalogue.create_dataset(f'clean_{ch}', data = clean_catalogue_dict[ch], compression="gzip")
+    # except Exception as e:
+    #     print(colored(f"Error saving clean df's as h5 data set", color='red'))
+    #     print(colored(f'>>> {e}', color='red'))
+    
+    # save df to pickle  #TODO: dynamic
+    # try:
+        # event_df_ch0.to_pickle('temp_folder/clean_catalogue_ch0_df.pkl')
+        # event_df_ch0.to_pickle('temp_folder/clean_catalogue_ch1_df.pkl')
+        # event_df_ch0.to_pickle('temp_folder/clean_catalogue_ch2_df.pkl')
+    # except Exception as e:
+    #     print(colored(f"Error saving clean df's as pickle data set", color='red'))
+    #     print(colored(f'>>> {e}', color='red'))
+        # clean_dict_filename = f'temp_folder/clean_catalogue_dict.pkl'
+        # clean_dict_handle = open(clean_dict_filename, 'rb')
+        # dict_file = pickle.load(clean_dict_handle)
+    
+    # save clean dict of df as pickle
+    print(colored("saving clean catalogue dict as pickle to disk", color = 'blue') )
     try:
-        clean_catalogue_path = path.join("temp_folder", "argset_clean_catalogue.h5") #TODO: dynamic
-        with h5.File(clean_catalogue_path, 'w') as clean_catalogue:
-            clean_catalogue.create_dataset('clean_ch0', data = clean_catalogue_dict['ch0'], compression="gzip")
-            clean_catalogue.create_dataset('clean_ch1', data = clean_catalogue_dict['ch1'], compression="gzip")
-            clean_catalogue.create_dataset('clean_ch2', data = clean_catalogue_dict['ch2'], compression="gzip")
-            # for ch_i, ch in enumerate([['ch0', 'ch1', 'ch2']]):
-                # clean_catalogue.create_dataset(f'clean_{ch}', data = clean_catalogue_dict[ch], compression="gzip")
+        clean_dict_path = path.join("temp_folder", "clean_catalogue_dict.pkl") ##TODO: dynamic
+        with open(clean_dict_path, 'wb') as clean_dict_file:
+            pickle.dump(clean_catalogue_dict, clean_dict_file, pickle.HIGHEST_PROTOCOL)
     except Exception as e:
-        print(colored(f"Error saving clean df's as h5 data set", color='red'))
-        print(colored(e, color='red'))
+        print(colored('Error saving clean dict of df as pickle', color='red'))
+        print(colored(f'>>> {e}', color='red'))
     return clean_catalogue_dict
 
 def pulse_template(t, t0, sigma, tau, scale, baseline, K) -> np.ndarray:
@@ -148,6 +184,7 @@ def fit_template(fit_catalogue:pd.DataFrame, n_channel:int) -> pd.DataFrame:
     - t0 is selected dynamically.
     - add reduced chisqr to fit_catalogue
     - multiple processing can be performed in parallel
+    - saves fit catalogue to disk. One catalogue per channel.
     '''
     ch_ls = ['ch0', 'ch1', 'ch2']
     wf_str_ls = ['wf_ch0', 'wf_ch1', 'wf_ch2']
@@ -197,9 +234,10 @@ def fit_template(fit_catalogue:pd.DataFrame, n_channel:int) -> pd.DataFrame:
                                                     'chisqr': None,
             }, ignore_index = True) # type: ignore
             print(colored(f'RuntimeError occured while cueve fitting on {ch_str} for clean index {clean_index}', color='red'))
-            print(colored(e, color='red'))
+            print(colored(f'>>> {e}', color='red'))
     
     return fit_catalogue
+
 def fit_all_channels(clean_catalogue_dict: dict, \
                      ch_number_ls:list[int]=[0,1,2]) -> dict:
     '''Runs the fitter over all channels. Saves fit catalogue to disk.'''
@@ -211,21 +249,30 @@ def fit_all_channels(clean_catalogue_dict: dict, \
     # for ch_i, ch in enumerate(ch_name_ls):
         fit_catalogue_dict[ch] = fit_template(clean_catalogue_dict[ch], ch_i)
     
-    # save fit df's as h5 data set
-    print(colored("saving fit catalogue as h5 to disk", color='magenta'))
-    try:
-        fit_catalogue_path = path.join("temp_folder", "argset_fit_catalogue.h5") #TODO: dynamic
-        with h5.File(fit_catalogue_path, 'w') as fit_catalogue:
-            # fit_catalogue.create_dataset(f'fit_ch0', data = fit_catalogue_dict['ch0'], compression="gzip")
-            # fit_catalogue.create_dataset(f'fit_ch1', data = fit_catalogue_dict['ch1'], compression="gzip")
-            # for ch_i, ch in enumerate([['ch0', 'ch1', 'ch2']]):
-            for ch_i in ch_number_ls:
-                ch = ch_name_dict[ch_i]
-                fit_catalogue.create_dataset(f'fit_{ch}', data = fit_catalogue_dict[ch], compression="gzip")
-    except Exception as e:
-        print(colored(f"Error saving fit df's as h5 data set", color='red'))
-        print(colored(e, color='red'))
+    # save fit df's as h5 data set ##TODO: remove
+    # print(colored("saving fit catalogue as h5 to disk", color='magenta'))
+    # try:
+    #     fit_catalogue_path = path.join("temp_folder", "argset_fit_catalogue.h5")
+    #     with h5.File(fit_catalogue_path, 'w') as fit_catalogue:
+    #         # fit_catalogue.create_dataset(f'fit_ch0', data = fit_catalogue_dict['ch0'], compression="gzip")
+    #         # fit_catalogue.create_dataset(f'fit_ch1', data = fit_catalogue_dict['ch1'], compression="gzip")
+    #         # for ch_i, ch in enumerate([['ch0', 'ch1', 'ch2']]):
+    #         for ch_i in ch_number_ls:
+    #             ch = ch_name_dict[ch_i]
+    #             fit_catalogue.create_dataset(f'fit_{ch}', data = fit_catalogue_dict[ch], compression="gzip")
+    # except Exception as e:
+    #     print(colored(f"Error saving fit df's as h5 data set", color='red'))
+    #     print(colored(e, color='red'))
 
+    # save clean dict of df as pickle
+    print(colored("saving fit catalogue dict as pickle to disk", color = 'blue') )
+    try:
+        fit_dict_path = path.join("temp_folder", "fit_catalogue_dict.pkl") ##TODO: dynamic
+        with open(fit_dict_path, 'wb') as fit_dict_file:
+            pickle.dump(fit_catalogue_dict, fit_dict_file, pickle.HIGHEST_PROTOCOL)
+    except Exception as e:
+        print(colored('Error saving fit dict of df as pickle', color='red'))
+        print(colored(f'>>> {e}', color='red'))
     return fit_catalogue_dict
 
 # def main(n_channel:int, save_plot:bool=False, \
@@ -257,7 +304,8 @@ def main(ch_number_ls:list[int], save_plot:bool=False, \
     
     clean_catalogue_dict = find_clean_wfs(pyreco_manager, event_catalogue_filename)
     
-    fit_catalogue_dict = fit_all_channels(clean_catalogue_dict, ch_number_ls = [1, 2])
+    fit_catalogue_dict = fit_all_channels(clean_catalogue_dict)
+    # fit_catalogue_dict = fit_all_channels(clean_catalogue_dict, ch_number_ls = [1, 2]) #ch_number_ls should be specified in main
     
     # # save fit df individually as pickle
     # try:
@@ -276,15 +324,15 @@ def main(ch_number_ls:list[int], save_plot:bool=False, \
     # except:
     #     print(f"Error saving fit df's as h5 data set")
     
-    # save clean dict of df as pickle
-    print(colored("saving clean catalogue dict as pickle to disk", color = 'blue') )
-    try:
-        clean_dict_path = path.join("temp_folder", "argset_clean_dict_3Ch.pkl") #diag
-        with open(clean_dict_path, 'wb') as dict_file: # diag
-            pickle.dump(clean_catalogue_dict, dict_file, pickle.HIGHEST_PROTOCOL)
-    except Exception as e:
-        print(colored('Error saving clean dict of df as pickle', color='red'))
-        print(colored(e, color='red'))
+    # # save clean dict of df as pickle ##TODO remove from here
+    # print(colored("saving clean catalogue dict as pickle to disk", color = 'blue') )
+    # try:
+    #     clean_dict_path = path.join("temp_folder", "argset_clean_dict_3Ch.pkl") #diag
+    #     with open(clean_dict_path, 'wb') as dict_file: # diag
+    #         pickle.dump(clean_catalogue_dict, dict_file, pickle.HIGHEST_PROTOCOL)
+    # except Exception as e:
+    #     print(colored('Error saving clean dict of df as pickle', color='red'))
+    #     print(colored(e, color='red'))
         
     if save_plot: #TODO: plotting has to change as well because df is now a dict of df
         print(colored(f"Commence plotting", 'green', attrs = ['blink', 'bold'])) #TODO: plot function
@@ -308,4 +356,5 @@ def main(ch_number_ls:list[int], save_plot:bool=False, \
 if __name__ == "__main__":
     # main(2, save_plot=True, plots_target=100)
     # main(2, False)
-    main([1, 2], False)
+    # main([1, 2], False)
+    main([2], False)
