@@ -110,8 +110,7 @@ def red_chisq(f_obs: np.ndarray, f_exp: np.ndarray, fittedparameters: np.ndarray
     ndf = f_obs.shape[0]
     return chisqr/(ndf -fittedparameters.shape[0])
 
-def fit_template(fit_catalogue:pd.DataFrame, n_channel:int) -> pd.DataFrame:
-    #TODO: input format change; get a new function to execute this function
+def fit_template(clean_catalogue:pd.DataFrame, n_channel:int) -> pd.DataFrame:
     '''
     fits template function to waveform.
     - t0 is selected dynamically.
@@ -126,14 +125,14 @@ def fit_template(fit_catalogue:pd.DataFrame, n_channel:int) -> pd.DataFrame:
     wf_ch = wf_str_ls[n_channel]
     peak_ch = peak_str_ls[n_channel]
     fit_begin = 0
-    # fit_param_df = pd.DataFrame(columns = ['fit_param_ch2'] ) #TODO 'fit_param_ch0', 'fit_param_ch1', 
-    fit_param_df = pd.DataFrame()
+    # fit_catalogue = pd.DataFrame(columns = ['fit_param_ch2'] ) #TODO 'fit_param_ch0', 'fit_param_ch1', 
+    fit_catalogue = pd.DataFrame()
     print(colored(f"Commence fitting {ch_str}", 'green', attrs = ['blink', 'bold']) )
     
-    for clean_index in trange(fit_catalogue.shape[0], colour='blue'): #Optional: we can do split processing on file
-        wf = fit_catalogue.iloc[clean_index][wf_ch] # channel specific
+    for clean_index in trange(clean_catalogue.shape[0], colour='blue'): #Optional: we can do split processing on file
+        wf = clean_catalogue.iloc[clean_index][wf_ch] # channel specific
         wf = transform_shift_wfs(wf)
-        peak_loc = fit_catalogue.iloc[clean_index][peak_ch]
+        peak_loc = clean_catalogue.iloc[clean_index][peak_ch]
         fit_end = wf.shape[0] # type: ignore
         x_values = np.arange(fit_begin,fit_end)
         # mse_700_800 = np.std(wf[n_channel][700:800])/np.sqrt(wf[n_channel][700:800].shape[0]) # do this for each channel
@@ -150,12 +149,14 @@ def fit_template(fit_catalogue:pd.DataFrame, n_channel:int) -> pd.DataFrame:
                                         bounds = ([0, 0, 0, 0, -np.inf, 0], \
                                                 [np.inf, 10, np.inf, 1, np.inf, np.inf])
                                         )
-            fit_param_df = fit_param_df._append({'fit_param': fittedparameters,
+            fit_catalogue = fit_catalogue._append({
+                                            'event_counter': clean_catalogue.iloc[clean_index]['event_counter'],
+                                            'fit_param': fittedparameters,
                                             'chisqr': red_chisq(wf, pulse_template(x_values, *fittedparameters), \
                                                                                 fittedparameters)
                                                 }, ignore_index=True) # type: ignore #TODO: repeat all channels
         except RuntimeError as e:
-            fit_param_df = fit_param_df._append({   'fit_param': None,
+            fit_catalogue = fit_catalogue._append({   'fit_param': None,
                                                     'chisqr': None,
             }, ignore_index = True) # type: ignore
             print(colored(f'RuntimeError occured while cueve fitting on {ch_str} for clean index {clean_index}', color='red'))
@@ -165,8 +166,9 @@ def fit_template(fit_catalogue:pd.DataFrame, n_channel:int) -> pd.DataFrame:
 
 def fit_all_channels(clean_catalogue_dict: dict, \
                      ch_number_ls:list[int]=[0,1,2]) -> dict:
-    '''Runs the fitter over all channels. Saves fit catalogue to disk.'''
-    # ch_name_ls=['ch0', 'ch1', 'ch2']
+    '''Runs the fitter over all channels. Saves fit catalogue to disk.
+    ch_number_ls -> list of channels numbers to be processed.'''
+
     ch_name_dict ={0:'ch0', 1:'ch1', 2:'ch2'}
     fit_catalogue_dict = {}
     for ch_i in ch_number_ls:
@@ -184,7 +186,6 @@ def fit_all_channels(clean_catalogue_dict: dict, \
         print(colored(f'>>> {e}', color='red'))
     return fit_catalogue_dict
 
-# def main(n_channel:int, save_plot:bool=False, \
 def main(ch_number_ls:list[int], save_plot:bool=False, \
         plots_target:int=10) ->None:
     '''
@@ -213,7 +214,7 @@ def main(ch_number_ls:list[int], save_plot:bool=False, \
     
     clean_catalogue_dict = find_clean_wfs(pyreco_manager, event_catalogue_filename)
     
-    fit_catalogue_dict = fit_all_channels(clean_catalogue_dict)
+    fit_catalogue_dict = fit_all_channels(clean_catalogue_dict, ch_number_ls)
     # fit_catalogue_dict = fit_all_channels(clean_catalogue_dict, ch_number_ls = [1, 2]) #ch_number_ls should be specified in main
     
     # # save fit df individually as pickle #TODO: remove
