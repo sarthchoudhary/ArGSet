@@ -9,13 +9,15 @@ from pyreco.reco.filtering import WFFilter
 from scipy.optimize import curve_fit
 from scipy.signal import find_peaks
 import pandas as pd
+import os
 from os import path
 from tqdm import trange
 from termcolor import colored
 import pickle
 
-
-def find_clean_wfs( pyreco_manager, catalogue_filename:str) -> dict[str, pd.DataFrame]: #TODO: work with dict[pd.DataFrame] 
+###TODO: test if modifications to plotter are working as intended.
+def find_clean_wfs( pyreco_manager, catalogue_filename:str, \
+                   file_instructions: list[str]) -> dict[str, pd.DataFrame]: 
     '''
     Uses ARMA filter to detect number of true SiPM pulse peaks
     - reads an event catalogue (either pkl or npz)
@@ -24,6 +26,9 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str) -> dict[str, pd.Data
     - returns dictionary of DataFrames
     - writes dictionary to pickle file.
    '''
+    output_folder = file_instructions[0]
+    file_basename = file_instructions[2]
+
     if catalogue_filename.endswith('.npz'):
         event_catalogue = np.load(catalogue_filename, allow_pickle=True)
         n_events = event_catalogue['event_counter'].shape[0]
@@ -41,7 +46,7 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str) -> dict[str, pd.Data
     event_df_ch0 = pd.DataFrame( columns = ['event_counter', 'wf_ch0', 'peak_ch0'])
     event_df_ch1 = pd.DataFrame( columns = ['event_counter', 'wf_ch1', 'peak_ch1'])
     event_df_ch2 = pd.DataFrame( columns = ['event_counter', 'wf_ch2', 'peak_ch2'])
-    # event_df_ls = [event_df_ch0, event_df_ch1, event_df_ch2]
+    # event_df_ls = [event_df_ch0, event_df_ch1, event_df_ch2] #TODO: remove
     print(colored(f"Finding clean waveforms", 'green', attrs = ['blink', 'bold']) )
 
     # for event_index in trange(n_events, colour='blue'): #TODO: uncomment
@@ -55,7 +60,7 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str) -> dict[str, pd.Data
         rms = pyreco_manager.algos.get_rms(flt_proc)
         flt_above_3rms = np.where(flt_proc > 3*rms, flt_proc, 0)
         ## flt_above_3rms = np.where(flt_proc > 3.05*rms, flt_proc, 0)        # diag
-        for ch in range(3): # problematic
+        for ch in range(3): ## we always search in all channels.
             if len(find_peaks(flt_above_3rms[ch])[0]) == 1: # single peak selector
                 event_dict = {
                     'event_counter': event_index+1,
@@ -72,7 +77,7 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str) -> dict[str, pd.Data
                     event_df_ch2 = event_df_ch2._append(event_dict, ignore_index=True) # type: ignore    
 
     clean_catalogue_dict = {
-        # 'filename': catalogue_filename, #TODO
+        'filename': file_basename,
         'ch0': event_df_ch0,
         'ch1': event_df_ch1,
         'ch2': event_df_ch2,       
@@ -80,8 +85,11 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str) -> dict[str, pd.Data
     ### save dict of df of clean event to pickle
     print(colored("saving clean catalogue dict as pickle to disk", color = 'blue') )
     ## TODO: compression for pickle files. https://stackoverflow.com/questions/57983431/whats-the-most-space-efficient-way-to-compress-serialized-python-data
+    
     try:
-        clean_dict_path = path.join("temp_folder", "clean_catalogue_dict.pkl") ##TODO: dynamic
+        # clean_dict_path = path.join("temp_folder", "clean_catalogue_dict.pkl")
+        output_filename = f"clean_catalogue_{file_basename}.pkl"
+        clean_dict_path = path.join(output_folder, output_filename)
         with open(clean_dict_path, 'wb') as clean_dict_file:
             pickle.dump(clean_catalogue_dict, clean_dict_file, pickle.HIGHEST_PROTOCOL)
     except Exception as e:
@@ -97,10 +105,10 @@ def pulse_template(t, t0, sigma, tau, scale, baseline, K) -> np.ndarray:
     '''
     return baseline + K*((1-scale)/(sigma*np.sqrt(2*np.pi))*np.exp(-((t-t0)/(sigma))**2/2) + scale*np.heaviside(t-t0,0)/tau*np.exp(-(t-t0)/tau))
 
-# def transform_shift_wfs(og_wfs:np.ndarray) -> tuple:
-def transform_shift_wf(og_wfs:np.ndarray) -> tuple:
-    ''' Transforms array. .''' #TODO: vectorize
-    # wfs = np.copy(og_wfs)
+def transform_shift_wf(og_wfs:np.ndarray) -> np.ndarray:
+    ''' Transforms array.'''
+# def transform_shift_wfs(og_wfs:np.ndarray) -> tuple: #TODO: vectorize
+    # wfs = np.copy(og_wfs)                            #optional: do whole dataset in onego
     # for _c in range(wfs.shape[0]):
     #     a = np.min(og_wfs[_c])
     #     if a < 0:
@@ -133,7 +141,6 @@ def fit_template(clean_catalogue:pd.DataFrame, n_channel:int) -> pd.DataFrame: #
     wf_ch = wf_str_ls[n_channel]
     peak_ch = peak_str_ls[n_channel]
     fit_begin = 0
-    # fit_catalogue = pd.DataFrame(columns = ['fit_param_ch2'] ) #TODO 'fit_param_ch0', 'fit_param_ch1', 
     fit_catalogue = pd.DataFrame()
     print(colored(f"Commence fitting {ch_str}", 'green', attrs = ['blink', 'bold']) )
     
@@ -163,7 +170,7 @@ def fit_template(clean_catalogue:pd.DataFrame, n_channel:int) -> pd.DataFrame: #
                                             'fit_param': fittedparameters,
                                             'chisqr': red_chisq(wf, pulse_template(x_values, *fittedparameters), \
                                                                                 fittedparameters)
-                                                }, ignore_index=True) # type: ignore #TODO: repeat all channels
+                                                }, ignore_index=True) # type: ignore
         except RuntimeError as e:
             fit_catalogue = fit_catalogue._append({   'fit_param': None,
                                                     'chisqr': None,
@@ -173,12 +180,14 @@ def fit_template(clean_catalogue:pd.DataFrame, n_channel:int) -> pd.DataFrame: #
     
     return fit_catalogue
 
-def fit_all_channels(clean_catalogue_dict: dict, \
+def fit_all_channels(clean_catalogue_dict: dict, file_instructions: list[str], \
                      ch_number_ls:list[int]=[0,1,2]) -> dict:
     '''
     Runs the fitter over all channels. Saves fit catalogue to disk.
     ch_number_ls -> list of channel numbers to be processed.
     '''
+    output_folder = file_instructions[0]
+    file_basename = file_instructions[2]
 
     ch_name_dict ={0:'ch0', 1:'ch1', 2:'ch2'}
     fit_catalogue_dict = {}
@@ -189,7 +198,9 @@ def fit_all_channels(clean_catalogue_dict: dict, \
     ### save dict of df of fit results to pickle
     print(colored("saving fit catalogue dict as pickle to disk", color = 'blue') )
     try:
-        fit_dict_path = path.join("temp_folder", "fit_catalogue_dict.pkl") ##TODO: dynamic
+        # fit_dict_path = path.join("temp_folder", "fit_catalogue_dict.pkl")
+        output_filename = f"fit_catalogue_{file_basename}.pkl"
+        fit_dict_path = path.join(output_folder, output_filename)
         with open(fit_dict_path, 'wb') as fit_dict_file:
             pickle.dump(fit_catalogue_dict, fit_dict_file, pickle.HIGHEST_PROTOCOL)
     except Exception as e:
@@ -197,19 +208,31 @@ def fit_all_channels(clean_catalogue_dict: dict, \
         print(colored(f'>>> {e}', color='red'))
     return fit_catalogue_dict
 
-def plotter_all(fit_catalogue_dict: dict, ch_number_ls: list[int], plots_target:int = 10) -> None:
+def plotter_all(fit_catalogue_dict: dict, ch_number_ls: list[int], \
+                file_instructions:list[str], plots_target:int = 10) -> None:
     ''' Loops plotting over ch_number_ls '''
 
     def plotter_ch(fit_catalogue:pd.DataFrame, channel_number:int, plots_target:int) -> None:
         ''' Plot waveform and fit function for individual channel. Quits once plots_target is met.'''
         
+        output_folder = file_instructions[0]
+        file_basename = file_instructions[2]
         ch_ls = ['ch0', 'ch1', 'ch2']
         wf_str_ls = ['wf_ch0', 'wf_ch1', 'wf_ch2']
         ch_str = ch_ls[channel_number]
         wf_ch = wf_str_ls[channel_number]
-        print(colored(f"Commence plotting: {ch_str}...", 'green', attrs = ['blink', 'bold']))
+        
+        output_folder = output_folder.split(sep = os.sep)[:-1]
+        # output_folder.append('plots')
+        output_folder.append('plots')
+        output_folder = f'{os.sep}'.join(output_folder)
+
+        if not path.isdir(output_folder):
+            os.mkdir(output_folder)
+
         # x_values = np.arange(0, 1750) # TODO: dynamic
         plots_target = min(plots_target, fit_catalogue.shape[0])
+        print(colored(f"Commence plotting: {ch_str}...", 'green', attrs = ['blink', 'bold']))
         for plot_index in trange(plots_target, colour='blue'):
             event_counter = fit_catalogue.iloc[plot_index]['event_counter']
             wf = fit_catalogue.iloc[plot_index][wf_ch]
@@ -226,7 +249,11 @@ def plotter_all(fit_catalogue_dict: dict, ch_number_ls: list[int], plots_target:
             ax = plt.gca()
             ax.add_artist(text_in_box)
             plt.legend()
-            plt.savefig(f'temp_folder/midas_wf_{ch_str}_{event_counter}.pdf')
+            
+            output_filename = f"midas_{file_basename}_{ch_str}_{event_counter}.pdf"
+            output_filename = path.join(output_folder, output_filename)
+            plt.savefig(output_filename)
+            # plt.savefig(f'temp_folder/midas_wf_{ch_str}_{event_counter}.pdf')
             plt.close()
 
     ch_ls = ['ch0', 'ch1', 'ch2']
@@ -235,30 +262,45 @@ def plotter_all(fit_catalogue_dict: dict, ch_number_ls: list[int], plots_target:
         ch_str = ch_ls[ch_number]
         plotter_ch(fit_catalogue_dict[ch_str], ch_number, plots_target)
 
-def main(ch_number_ls:list[int], plots_target:int, save_plots:bool=True) ->None:
+def main(file_instructions: list[str], ch_number_ls:list[int], plots_target:int, save_plots:bool=True) ->None:
     '''
     Steps:
     - call find_clean_wfs
     - call fit_template
     - plots waveforms and saves to pdf
-    - saves DataFrame as pickle file 
     - finally need another function for creating all histogram requested by Marcin 
-    - make fit optional
     '''
-    filename = '/work/sarthak/ArgSet/2024_Mar_27/midas/run00061.mid.lz4' #TODO: dynamic path
+    base_filename = file_instructions[2]
+    midas_data_folder = '/work/sarthak/ArgSet/2024_Mar_27/midas/'
+    midas_data_filename = f'{base_filename}.mid.lz4'
+    midas_data_filename = path.join(midas_data_folder, midas_data_filename)
+    # filename = '/work/sarthak/ArgSet/2024_Mar_27/midas/run00061.mid.lz4'
     event_catalogue_filename = f'/home/sarthak/my_projects/argset/data/event_catalogue_run0061.pkl'
     # event_catalogue_filename = f'/home/sarthak/my_projects/argset/data/event_catalogue_run00061.npz'
     outfile = 'temp_folder/temp_pyR00061_from_pickle'
     confile = 'argset.ini'
 
-    cmdline_args = f'--config {confile} -o {outfile} -i {filename}'
+    cmdline_args = f'--config {confile} -o {outfile} -i {midas_data_filename}'
     pyreco_manager = Manager( midas=True, cmdline_args=cmdline_args)
 
-    clean_catalogue_dict = find_clean_wfs(pyreco_manager, event_catalogue_filename)    
-    fit_catalogue_dict = fit_all_channels(clean_catalogue_dict, ch_number_ls)
+    clean_catalogue_dict = find_clean_wfs(pyreco_manager, event_catalogue_filename, file_instructions)    
+    fit_catalogue_dict = fit_all_channels(clean_catalogue_dict, file_instructions, ch_number_ls)
     
     if save_plots:
-        plotter_all(fit_catalogue_dict, ch_number_ls, plots_target)
+        plotter_all(fit_catalogue_dict, ch_number_ls, file_instructions, plots_target)
 
 if __name__ == "__main__":
-    main(ch_number_ls = [1, 2], plots_target=5)
+    
+    file_instructions = ['-', '-', '-'] #TODO: this is ugly. Change to dict
+    file_instructions[0] = '/home/sarthak/my_projects/argset/output_folder'
+    # run_catalogue = ['event_catalogue_run00052.pkl', 'event_catalogue_run00053.pkl', \
+    # 'event_catalogue_run00054.pkl', 'event_catalogue_run00061.pkl']
+    run_catalogue = ['event_catalogue_run00062.pkl', 'event_catalogue_run00063.pkl']
+    
+    for data_filename in run_catalogue:
+        file_instructions[1] = data_filename
+        base_filename = data_filename.replace('_', '.').split(sep='.')[-2]
+        file_instructions[2] = base_filename
+        # main(file_instructions, ch_number_ls = [0, 1, 2], plots_target=100)
+        # main(file_instructions, ch_number_ls = [2], plots_target=100)
+        main(file_instructions, ch_number_ls = [2], plots_target=5)
