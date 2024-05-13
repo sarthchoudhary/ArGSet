@@ -1,3 +1,9 @@
+/data
 /finger_plots
+/plots
 /output_folder
 /temp_folder
+/backup
+*.log
+*.root
+/__pycache__
