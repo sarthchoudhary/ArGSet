@@ -15,7 +15,7 @@ from termcolor import colored
 import pickle
 
 
-def find_clean_wfs( pyreco_manager, catalogue_filename:str) -> dict[str, pd.DataFrame]: #TODO: work with different input format 
+def find_clean_wfs( pyreco_manager, catalogue_filename:str) -> dict[str, pd.DataFrame]: #TODO: work with dict[pd.DataFrame] 
     '''
     Uses ARMA filter to detect number of true SiPM pulse peaks
     - reads an event catalogue (either pkl or npz)
@@ -97,22 +97,28 @@ def pulse_template(t, t0, sigma, tau, scale, baseline, K) -> np.ndarray:
     '''
     return baseline + K*((1-scale)/(sigma*np.sqrt(2*np.pi))*np.exp(-((t-t0)/(sigma))**2/2) + scale*np.heaviside(t-t0,0)/tau*np.exp(-(t-t0)/tau))
 
-def transform_shift_wfs(og_wfs:np.ndarray) -> tuple:
-    ''' Transforms array. There should be a vectorized method for this.''' #TODO: vectorize
-    wfs = np.copy(og_wfs)
-    for _c in range(wfs.shape[0]):
-        a = np.min(og_wfs[_c])
-        if a < 0:
-            wfs[_c] = og_wfs[_c] + np.abs(a)
-    return wfs
+# def transform_shift_wfs(og_wfs:np.ndarray) -> tuple:
+def transform_shift_wf(og_wfs:np.ndarray) -> tuple:
+    ''' Transforms array. .''' #TODO: vectorize
+    # wfs = np.copy(og_wfs)
+    # for _c in range(wfs.shape[0]):
+    #     a = np.min(og_wfs[_c])
+    #     if a < 0:
+    #         wfs[_c] = og_wfs[_c] + np.abs(a)
+    wf = np.copy(og_wfs)
+    wf_min = np.min(wf)
+    if wf_min < 0:
+        wf = wf + np.abs(wf_min)
+    # return wfs
+    return wf
 
 def red_chisq(f_obs: np.ndarray, f_exp: np.ndarray, fittedparameters: np.ndarray) -> float:
     ''' calculates reduced chisquare '''
     chisqr = np.sum((f_obs - f_exp)**2 / f_exp)
     ndf = f_obs.shape[0]
-    return chisqr/(ndf -fittedparameters.shape[0])
+    return chisqr/(ndf -fittedparameters.shape[0]) # type: ignore
 
-def fit_template(clean_catalogue:pd.DataFrame, n_channel:int) -> pd.DataFrame:
+def fit_template(clean_catalogue:pd.DataFrame, n_channel:int) -> pd.DataFrame: #TODO: getback actual baseline
     '''
     fits pulse template function to pulses:
     - t0 is taken from peak location in input clean catalogue
@@ -133,7 +139,7 @@ def fit_template(clean_catalogue:pd.DataFrame, n_channel:int) -> pd.DataFrame:
     
     for clean_index in trange(clean_catalogue.shape[0], colour='blue'): #Optional: we can do split processing on file
         wf = clean_catalogue.iloc[clean_index][wf_ch] # channel specific
-        wf = transform_shift_wfs(wf)
+        wf = transform_shift_wf(wf)
         peak_loc = clean_catalogue.iloc[clean_index][peak_ch]
         fit_end = wf.shape[0] # type: ignore
         x_values = np.arange(fit_begin,fit_end)
