@@ -11,7 +11,7 @@ from scipy.signal import find_peaks
 import pandas as pd
 import os
 from os import path
-from tqdm import trange
+from tqdm import trange, tqdm
 from termcolor import colored
 import pickle
 
@@ -26,6 +26,8 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str, \
     - returns dictionary of DataFrames
     - writes dictionary to pickle file.
    '''
+    print(colored(f'loading events from {catalogue_filename}...', 'magenta'))
+
     output_folder = file_config['output_folder']   
     file_basename = name_dict['file_basename']
     catalogue_filename = path.join(file_config['data_folder'], catalogue_filename)
@@ -37,7 +39,6 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str, \
         event_catalogue = pd.read_pickle(catalogue_filename)
         n_events = event_catalogue.shape[0]
 
-    print(colored('loading events...', 'magenta'))
     wf = event_catalogue['wf']
     
     mfilter = WFFilter(pyreco_manager.config)
@@ -176,7 +177,8 @@ def fit_template(clean_catalogue:pd.DataFrame, n_channel:int) -> pd.DataFrame: #
             fit_catalogue = fit_catalogue._append({   'fit_param': None,
                                                     'chisqr': None,
             }, ignore_index = True) # type: ignore
-            print(colored(f'RuntimeError occured while cueve fitting on {ch_str} for clean index {clean_index}', color='red'))
+            print(colored(f"RuntimeError occured while cueve fitting on {ch_str} for \
+                          event counter {clean_catalogue.iloc[clean_index]['event_counter']}", color='red'))
             print(colored(f'>>> {e}', color='red'))
     
     return fit_catalogue
@@ -217,6 +219,8 @@ def plotter_all(fit_catalogue_dict: dict, ch_number_ls: list[int], \
 
     def plotter_ch(fit_catalogue:pd.DataFrame, channel_number:int, plots_target:int) -> None:
         ''' Plot waveform and fit function for individual channel. Quits once plots_target is met.'''
+
+        fit_catalogue = fit_catalogue.dropna()
         
         output_folder = file_config['output_folder']
         file_basename = name_dict['file_basename']
@@ -234,9 +238,12 @@ def plotter_all(fit_catalogue_dict: dict, ch_number_ls: list[int], \
             os.mkdir(output_folder)
 
         # x_values = np.arange(0, 1750) # TODO: dynamic
-        plots_target = min(plots_target, fit_catalogue.shape[0])
+        
         print(colored(f"Commence plotting: {ch_str}...", 'green', attrs = ['blink', 'bold']))
-        for plot_index in trange(plots_target, colour='blue'):
+        plots_target = min(plots_target, fit_catalogue.shape[0])
+        
+        for loop_index in trange(plots_target, colour='blue'):
+            plot_index = fit_catalogue.index.values[loop_index]
             event_counter = fit_catalogue.iloc[plot_index]['event_counter']
             wf = fit_catalogue.iloc[plot_index][wf_ch]
             x_values = np.arange(0, wf.shape[0])
@@ -272,7 +279,6 @@ def main(file_config: dict, ch_number_ls:list[int], plots_target:int, save_plots
     - call find_clean_wfs
     - call fit_template
     - plots waveforms and saves to pdf
-    - finally need another function for creating all histogram requested by Marcin 
     '''
     # base_filename = file_instructions[2]
     get_basename = lambda filename: filename.replace('_', '.').split(sep='.')[-2]
@@ -315,10 +321,11 @@ if __name__ == "__main__":
      
     # file_instructions = ['-', '-', '-'] #TODO: this is ugly. Change to dict
     # file_instructions[0] = '/home/sarthak/my_projects/argset/output_folder'
-    # run_catalogue = ['event_catalogue_run00052.pkl', 'event_catalogue_run00053.pkl', \
-    # 'event_catalogue_run00054.pkl', 'event_catalogue_run00061.pkl', \
-    #     'event_catalogue_run00062.pkl', 'event_catalogue_run00063.pkl']
-    run_catalogue = ['event_catalogue_run00061.pkl', 'event_catalogue_run00052.pkl'] # diag
+
+    # run_catalogue = ['event_catalogue_run00061.pkl', 'event_catalogue_run00052.pkl'] # diag
+    run_catalogue = ['event_catalogue_run00052.pkl', 'event_catalogue_run00053.pkl', \
+    'event_catalogue_run00054.pkl', 'event_catalogue_run00061.pkl', \
+        'event_catalogue_run00062.pkl', 'event_catalogue_run00063.pkl']
     file_config = {}
     file_config['midas_data_folder'] = '/work/sarthak/ArgSet/2024_Mar_27/midas/'
     file_config['output_folder']     = '/home/sarthak/my_projects/argset/output_folder' #TODO: this should be intrinsic to code
@@ -333,5 +340,5 @@ if __name__ == "__main__":
         # main(file_instructions, ch_number_ls = [0, 1, 2], plots_target=100)
         # main(file_instructions, ch_number_ls = [2], plots_target=100)
         # main(file_instructions, ch_number_ls = [2], plots_target=5)
-    main(file_config, ch_number_ls = [2], plots_target=5) # diag
-    # main(file_config, ch_number_ls = [2], plots_target=100)
+    # main(file_config, ch_number_ls = [2], plots_target=5) # diag
+    main(file_config, ch_number_ls = [0, 1, 2], plots_target=100)
