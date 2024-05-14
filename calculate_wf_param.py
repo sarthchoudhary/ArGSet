@@ -47,7 +47,7 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str, \
     event_df_ch0 = pd.DataFrame( columns = ['event_counter', 'wf_ch0', 'peak_ch0'])
     event_df_ch1 = pd.DataFrame( columns = ['event_counter', 'wf_ch1', 'peak_ch1'])
     event_df_ch2 = pd.DataFrame( columns = ['event_counter', 'wf_ch2', 'peak_ch2'])
-    # event_df_ls = [event_df_ch0, event_df_ch1, event_df_ch2] #TODO: remove
+    # event_df_ls = [event_df_ch0, event_df_ch1, event_df_ch2] #TODO: future
     print(colored(f"Finding clean waveforms", 'green', attrs = ['blink', 'bold']) )
 
     for event_index in trange(n_events, colour='blue'): #TODO: uncomment
@@ -60,7 +60,7 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str, \
         flt_proc = np.where(flt_proc>0,flt_proc, 0)
         rms = pyreco_manager.algos.get_rms(flt_proc)
         flt_above_3rms = np.where(flt_proc > 3*rms, flt_proc, 0)
-        ## flt_above_3rms = np.where(flt_proc > 3.05*rms, flt_proc, 0)        # diag
+        ## flt_above_3rms = np.where(flt_proc > 3.05*rms, flt_proc, 0)        # TODO: rms tuning
         for ch in range(3): ## we always search in all channels.
             if len(find_peaks(flt_above_3rms[ch])[0]) == 1: # single peak selector
                 event_dict = {
@@ -88,7 +88,6 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str, \
     ## TODO: compression for pickle files. https://stackoverflow.com/questions/57983431/whats-the-most-space-efficient-way-to-compress-serialized-python-data
     
     try:
-        # clean_dict_path = path.join("temp_folder", "clean_catalogue_dict.pkl")
         output_filename = f"clean_catalogue_{file_basename}.pkl"
         clean_dict_path = path.join(output_folder, output_filename)
         with open(clean_dict_path, 'wb') as clean_dict_file:
@@ -202,7 +201,6 @@ def fit_all_channels(clean_catalogue_dict: dict, file_config: dict, name_dict: d
     if not path.isdir(output_folder):
         os.mkdir(output_folder)
     try:
-        # fit_dict_path = path.join("temp_folder", "fit_catalogue_dict.pkl")
         output_filename = f"fit_catalogue_{file_basename}.pkl"
         fit_dict_path = path.join(output_folder, output_filename)
         with open(fit_dict_path, 'wb') as fit_dict_file:
@@ -244,8 +242,6 @@ def plotter_all(fit_catalogue_dict: dict, ch_number_ls: list[int], \
         with tqdm(total = plots_target, colour = 'blue') as pbar:
             for plot_index in fit_catalogue.index.values:
                 if plot_counter < plots_target:
-            # for loop_index in trange(plots_target, colour='blue'): #TODO: remove
-                # plot_index = fit_catalogue.index.values[loop_index]#TODO: remove
                     event_counter = fit_catalogue.loc[plot_index]['event_counter']
                     wf = fit_catalogue.loc[plot_index][wf_ch]
                     x_values = np.arange(0, wf.shape[0])
@@ -276,7 +272,6 @@ def plotter_all(fit_catalogue_dict: dict, ch_number_ls: list[int], \
         ch_str = ch_ls[ch_number]
         plotter_ch(fit_catalogue_dict[ch_str], ch_number, plots_target)
 
-# def main(file_instructions: list[str], ch_number_ls:list[int], plots_target:int, save_plots:bool=True) ->None:
 def main(file_config: dict, ch_number_ls:list[int], plots_target:int, save_plots:bool=True) ->None:
     '''
     Steps:
@@ -284,21 +279,12 @@ def main(file_config: dict, ch_number_ls:list[int], plots_target:int, save_plots
     - call fit_template
     - plots waveforms and saves to pdf
     '''
-    # base_filename = file_instructions[2]
     get_basename = lambda filename: filename.replace('_', '.').split(sep='.')[-2]
     file_config['file_basename'] = list(map(get_basename, file_config['run_catalogue']))
 
-    # midas_data_folder = '/work/sarthak/ArgSet/2024_Mar_27/midas/'
     midas_data_folder = file_config['midas_data_folder']
-    # midas_data_filename = f'{base_filename}.mid.lz4'
-    # midas_data_filename = path.join(midas_data_folder, midas_data_filename)
     get_dataname = lambda filename: path.join(midas_data_folder, f'{filename}.mid.lz4')
     file_config['midas_data_filename'] = list(map(get_dataname, file_config['file_basename']))
-    print(file_config['file_basename']) #diag
-    print(file_config['midas_data_filename']) # diag
-    ## filename = '/work/sarthak/ArgSet/2024_Mar_27/midas/run00061.mid.lz4'
-    # event_catalogue_filename = f'/home/sarthak/my_projects/argset/data/event_catalogue_run0061.pkl'
-    ## event_catalogue_filename = f'/home/sarthak/my_projects/argset/data/event_catalogue_run00061.npz'
     outfile = 'temp_folder/temp_pyR00061_from_pickle'
     confile = 'argset.ini'
 
@@ -315,21 +301,14 @@ def main(file_config: dict, ch_number_ls:list[int], plots_target:int, save_plots
         
         if save_plots:
             plotter_all(fit_catalogue_dict, ch_number_ls, file_config, name_dict, plots_target)
-    # clean_catalogue_dict = find_clean_wfs(pyreco_manager, event_catalogue_filename, file_instructions)    
-    # fit_catalogue_dict = fit_all_channels(clean_catalogue_dict, file_instructions, ch_number_ls)
-    
-    # if save_plots:
-    #     plotter_all(fit_catalogue_dict, ch_number_ls, file_instructions, plots_target)
 
 if __name__ == "__main__":
      
-    # file_instructions = ['-', '-', '-'] #TODO: this is ugly. Change to dict
-    # file_instructions[0] = '/home/sarthak/my_projects/argset/output_folder'
-
     # run_catalogue = ['event_catalogue_run00061.pkl', 'event_catalogue_run00052.pkl'] # diag
     run_catalogue = ['event_catalogue_run00052.pkl', 'event_catalogue_run00053.pkl', \
     'event_catalogue_run00054.pkl', 'event_catalogue_run00061.pkl', \
         'event_catalogue_run00062.pkl', 'event_catalogue_run00063.pkl']
+
     file_config = {}
     file_config['midas_data_folder'] = '/work/sarthak/ArgSet/2024_Mar_27/midas/'
     file_config['output_folder']     = '/home/sarthak/my_projects/argset/output_folder' #TODO: this should be intrinsic to code
@@ -337,12 +316,5 @@ if __name__ == "__main__":
     file_config['run_catalogue']     = run_catalogue
 
 
-    # for file_index, data_filename in enumerate(file_config['run_catalogue']):
-        # file_instructions[1] = data_filename
-        # base_filename = data_filename.replace('_', '.').split(sep='.')[-2]
-        # file_instructions[2] = base_filename
-        # main(file_instructions, ch_number_ls = [0, 1, 2], plots_target=100)
-        # main(file_instructions, ch_number_ls = [2], plots_target=100)
-        # main(file_instructions, ch_number_ls = [2], plots_target=5)
     # main(file_config, ch_number_ls = [2], plots_target=5) # diag
     main(file_config, ch_number_ls = [0, 1, 2], plots_target=10)
