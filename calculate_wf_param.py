@@ -15,7 +15,6 @@ from tqdm import trange, tqdm
 from termcolor import colored
 import pickle
 
-###TODO: test if modifications to plotter are working as intended.
 def find_clean_wfs( pyreco_manager, catalogue_filename:str, \
                    file_config: dict, name_dict:dict) -> dict[str, pd.DataFrame]: 
     '''
@@ -177,7 +176,7 @@ def fit_template(clean_catalogue:pd.DataFrame, n_channel:int) -> pd.DataFrame: #
             fit_catalogue = fit_catalogue._append({   'fit_param': None,
                                                     'chisqr': None,
             }, ignore_index = True) # type: ignore
-            print(colored(f"RuntimeError occured while cueve fitting on {ch_str} for \
+            print(colored(f"RuntimeError occured while curve fitting on {ch_str} for \
                           event counter {clean_catalogue.iloc[clean_index]['event_counter']}", color='red'))
             print(colored(f'>>> {e}', color='red'))
     
@@ -230,7 +229,6 @@ def plotter_all(fit_catalogue_dict: dict, ch_number_ls: list[int], \
         wf_ch = wf_str_ls[channel_number]
         
         output_folder = output_folder.split(sep = os.sep)[:-1]
-        # output_folder.append('plots')
         output_folder.append('plots')
         output_folder = f'{os.sep}'.join(output_folder)
 
@@ -242,29 +240,35 @@ def plotter_all(fit_catalogue_dict: dict, ch_number_ls: list[int], \
         print(colored(f"Commence plotting: {ch_str}...", 'green', attrs = ['blink', 'bold']))
         plots_target = min(plots_target, fit_catalogue.shape[0])
         
-        for loop_index in trange(plots_target, colour='blue'):
-            plot_index = fit_catalogue.index.values[loop_index]
-            event_counter = fit_catalogue.iloc[plot_index]['event_counter']
-            wf = fit_catalogue.iloc[plot_index][wf_ch]
-            x_values = np.arange(0, wf.shape[0])
-            plt.figure(plot_index, figsize=(8,6))
-            plt.title(f"{ch_str} data vs fit") 
-            plt.plot(wf + np.abs(np.min(wf)), '.--', color='black', \
-                        label=f'data : {ch_str}')
-            fittedparameters = fit_catalogue.iloc[plot_index]['fit_param']
-            plt.plot(pulse_template(x_values, *fittedparameters), \
-        '-', color='red', label=f'template fit on {ch_str}')
-            text_in_box = AnchoredText(f"reduced chisqr = {fit_catalogue.iloc[plot_index]['chisqr']:.2f}", \
-                                       loc='upper left')
-            ax = plt.gca()
-            ax.add_artist(text_in_box)
-            plt.legend()
-            
-            output_filename = f"midas_{file_basename}_{ch_str}_{event_counter}.pdf"
-            output_filename = path.join(output_folder, output_filename)
-            plt.savefig(output_filename)
-            # plt.savefig(f'temp_folder/midas_wf_{ch_str}_{event_counter}.pdf')
-            plt.close()
+        plot_counter  = 0
+        with tqdm(total = plots_target, colour = 'blue') as pbar:
+            for plot_index in fit_catalogue.index.values:
+                if plot_counter < plots_target:
+            # for loop_index in trange(plots_target, colour='blue'): #TODO: remove
+                # plot_index = fit_catalogue.index.values[loop_index]#TODO: remove
+                    event_counter = fit_catalogue.loc[plot_index]['event_counter']
+                    wf = fit_catalogue.loc[plot_index][wf_ch]
+                    x_values = np.arange(0, wf.shape[0])
+                    plt.figure(plot_index, figsize=(8,6))
+                    plt.title(f"{ch_str} data vs fit") 
+                    plt.plot(wf + np.abs(np.min(wf)), '.--', color='black', \
+                                label=f'data : {ch_str}')
+                    fittedparameters = fit_catalogue.loc[plot_index]['fit_param']
+                    plt.plot(pulse_template(x_values, *fittedparameters), \
+                '-', color='red', label=f'template fit on {ch_str}')
+                    text_in_box = AnchoredText(f"reduced chisqr = {fit_catalogue.loc[plot_index]['chisqr']:.2f}", \
+                                            loc='upper left')
+                    ax = plt.gca()
+                    ax.add_artist(text_in_box)
+                    plt.legend()
+                    
+                    output_filename = f"midas_{file_basename}_{ch_str}_{int(event_counter)}.pdf"
+                    output_filename = path.join(output_folder, output_filename)
+                    plt.savefig(output_filename)
+                    # plt.savefig(f'temp_folder/midas_wf_{ch_str}_{event_counter}.pdf')
+                    plt.close()
+                    plot_counter +=1
+                    pbar.update(1)
 
     ch_ls = ['ch0', 'ch1', 'ch2']
 
@@ -341,4 +345,4 @@ if __name__ == "__main__":
         # main(file_instructions, ch_number_ls = [2], plots_target=100)
         # main(file_instructions, ch_number_ls = [2], plots_target=5)
     # main(file_config, ch_number_ls = [2], plots_target=5) # diag
-    main(file_config, ch_number_ls = [0, 1, 2], plots_target=100)
+    main(file_config, ch_number_ls = [0, 1, 2], plots_target=10)
