@@ -4,7 +4,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.offsetbox import AnchoredText
-from pyreco.manager.manager import Manager # TODO: Can WFfilter work w/o it
+from pyreco.manager.manager import Manager # TODO: Can WFfilter work w/o it?
 from pyreco.reco.filtering import WFFilter
 from scipy.optimize import curve_fit
 from scipy.signal import find_peaks
@@ -88,7 +88,7 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str, \
     ## TODO: compression for pickle files. https://stackoverflow.com/questions/57983431/whats-the-most-space-efficient-way-to-compress-serialized-python-data
     
     try:
-        output_filename = f"clean_catalogue_custom_{file_basename}.pkl"
+        output_filename = f"clean_catalogue_{file_basename}.pkl"
         clean_dict_path = path.join(output_folder, output_filename)
         with open(clean_dict_path, 'wb') as clean_dict_file:
             pickle.dump(clean_catalogue_dict, clean_dict_file, pickle.HIGHEST_PROTOCOL)
@@ -121,7 +121,7 @@ def red_chisq(f_obs: np.ndarray, f_exp: np.ndarray, fittedparameters: np.ndarray
     ndf = f_obs.shape[0]
     return chisqr/(ndf -fittedparameters.shape[0]) # type: ignore
 
-def fit_template(clean_catalogue:pd.DataFrame, n_channel:int) -> pd.DataFrame: #TODO: getback actual baseline
+def fit_template(clean_catalogue:pd.DataFrame, n_channel:int) -> pd.DataFrame:
     '''
     fits pulse template function to pulses:
     - t0 is taken from peak location in input clean catalogue
@@ -159,12 +159,12 @@ def fit_template(clean_catalogue:pd.DataFrame, n_channel:int) -> pd.DataFrame: #
                                         bounds = ([0, 0, 0, 0, -np.inf, 0], \
                                                 [np.inf, 10, np.inf, 1, np.inf, np.inf])
                                         )
+            fittedparameters[4] = fittedparameters[4] + wf_min
             fit_catalogue = fit_catalogue._append({
                                             'event_counter': clean_catalogue.iloc[clean_index]['event_counter'],
                                             wf_ch : wf,
                                             'wf_real': wf + wf_min,
                                             'fit_param': fittedparameters,
-                                            'estimated_baseline': fittedparameters[4] + wf_min,
                                             'chisqr': red_chisq(wf, pulse_template(x_values, *fittedparameters), \
                                                                                 fittedparameters)
                                                 }, ignore_index=True) # type: ignore
@@ -198,7 +198,7 @@ def fit_all_channels(clean_catalogue_dict: dict, file_config: dict, name_dict: d
     if not path.isdir(output_folder):
         os.mkdir(output_folder)
     try:
-        output_filename = f"fit_catalogue_custom_{file_basename}.pkl"
+        output_filename = f"fit_catalogue_{file_basename}.pkl"
         fit_dict_path = path.join(output_folder, output_filename)
         with open(fit_dict_path, 'wb') as fit_dict_file:
             pickle.dump(fit_catalogue_dict, fit_dict_file, pickle.HIGHEST_PROTOCOL)
@@ -284,7 +284,7 @@ def main(file_config: dict, ch_number_ls:list[int], plots_target:int, save_plots
     file_config['midas_data_filename'] = list(map(get_dataname, file_config['file_basename']))
     outfile = 'temp_folder/temp_pyR00061_from_pickle'
     # confile = 'argset.ini'
-    confile = 'argset_custom.ini'
+    confile = 'argset.ini'
 
     for file_index, event_catalogue_filename in enumerate(file_config['run_catalogue']):
         name_dict = {}
