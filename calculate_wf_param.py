@@ -88,7 +88,7 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str, \
     ## TODO: compression for pickle files. https://stackoverflow.com/questions/57983431/whats-the-most-space-efficient-way-to-compress-serialized-python-data
     
     try:
-        output_filename = f"clean_catalogue_{file_basename}.pkl"
+        output_filename = f"clean_catalogue_custom_{file_basename}.pkl"
         clean_dict_path = path.join(output_folder, output_filename)
         with open(clean_dict_path, 'wb') as clean_dict_file:
             pickle.dump(clean_catalogue_dict, clean_dict_file, pickle.HIGHEST_PROTOCOL)
@@ -105,20 +105,15 @@ def pulse_template(t, t0, sigma, tau, scale, baseline, K) -> np.ndarray:
     '''
     return baseline + K*((1-scale)/(sigma*np.sqrt(2*np.pi))*np.exp(-((t-t0)/(sigma))**2/2) + scale*np.heaviside(t-t0,0)/tau*np.exp(-(t-t0)/tau))
 
-def transform_shift_wf(og_wfs:np.ndarray) -> np.ndarray:
+def transform_shift_wf(og_wfs:np.ndarray) -> tuple[np.ndarray, float]:
     ''' Transforms array.'''
-# def transform_shift_wfs(og_wfs:np.ndarray) -> tuple: #TODO: vectorize
-    # wfs = np.copy(og_wfs)                            #optional: do whole dataset in onego
-    # for _c in range(wfs.shape[0]):
-    #     a = np.min(og_wfs[_c])
-    #     if a < 0:
-    #         wfs[_c] = og_wfs[_c] + np.abs(a)
     wf = np.copy(og_wfs)
     wf_min = np.min(wf)
     if wf_min < 0:
         wf = wf + np.abs(wf_min)
-    # return wfs
-    return wf
+    else:
+        wf_min = 0
+    return wf, wf_min
 
 def red_chisq(f_obs: np.ndarray, f_exp: np.ndarray, fittedparameters: np.ndarray) -> float:
     ''' calculates reduced chisquare '''
@@ -146,7 +141,7 @@ def fit_template(clean_catalogue:pd.DataFrame, n_channel:int) -> pd.DataFrame: #
     
     for clean_index in trange(clean_catalogue.shape[0], colour='blue'): #Optional: we can do split processing on file
         wf = clean_catalogue.iloc[clean_index][wf_ch] # channel specific
-        wf = transform_shift_wf(wf)
+        wf, wf_min = transform_shift_wf(wf)
         peak_loc = clean_catalogue.iloc[clean_index][peak_ch]
         fit_end = wf.shape[0] # type: ignore
         x_values = np.arange(fit_begin,fit_end)
@@ -167,7 +162,9 @@ def fit_template(clean_catalogue:pd.DataFrame, n_channel:int) -> pd.DataFrame: #
             fit_catalogue = fit_catalogue._append({
                                             'event_counter': clean_catalogue.iloc[clean_index]['event_counter'],
                                             wf_ch : wf,
+                                            'wf_real': wf + wf_min,
                                             'fit_param': fittedparameters,
+                                            'estimated_baseline': fittedparameters[4] + wf_min,
                                             'chisqr': red_chisq(wf, pulse_template(x_values, *fittedparameters), \
                                                                                 fittedparameters)
                                                 }, ignore_index=True) # type: ignore
@@ -201,7 +198,7 @@ def fit_all_channels(clean_catalogue_dict: dict, file_config: dict, name_dict: d
     if not path.isdir(output_folder):
         os.mkdir(output_folder)
     try:
-        output_filename = f"fit_catalogue_{file_basename}.pkl"
+        output_filename = f"fit_catalogue_custom_{file_basename}.pkl"
         fit_dict_path = path.join(output_folder, output_filename)
         with open(fit_dict_path, 'wb') as fit_dict_file:
             pickle.dump(fit_catalogue_dict, fit_dict_file, pickle.HIGHEST_PROTOCOL)
@@ -286,7 +283,8 @@ def main(file_config: dict, ch_number_ls:list[int], plots_target:int, save_plots
     get_dataname = lambda filename: path.join(midas_data_folder, f'{filename}.mid.lz4')
     file_config['midas_data_filename'] = list(map(get_dataname, file_config['file_basename']))
     outfile = 'temp_folder/temp_pyR00061_from_pickle'
-    confile = 'argset.ini'
+    # confile = 'argset.ini'
+    confile = 'argset_custom.ini'
 
     for file_index, event_catalogue_filename in enumerate(file_config['run_catalogue']):
         name_dict = {}
@@ -304,7 +302,7 @@ def main(file_config: dict, ch_number_ls:list[int], plots_target:int, save_plots
 
 if __name__ == "__main__":
      
-    # run_catalogue = ['event_catalogue_run00061.pkl', 'event_catalogue_run00052.pkl'] # diag
+    # run_catalogue = ['event_catalogue_run00061.pkl'] # diag
     run_catalogue = ['event_catalogue_run00052.pkl', 'event_catalogue_run00053.pkl', \
     'event_catalogue_run00054.pkl', 'event_catalogue_run00061.pkl', \
         'event_catalogue_run00062.pkl', 'event_catalogue_run00063.pkl']
@@ -316,5 +314,5 @@ if __name__ == "__main__":
     file_config['run_catalogue']     = run_catalogue
 
 
-    # main(file_config, ch_number_ls = [2], plots_target=5) # diag
-    main(file_config, ch_number_ls = [0, 1, 2], plots_target=10)
+    main(file_config, ch_number_ls = [2], plots_target=20) # diag
+    # main(file_config, ch_number_ls = [0, 1, 2], plots_target=10)
