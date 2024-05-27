@@ -159,15 +159,18 @@ def fit_template(clean_catalogue:pd.DataFrame, n_channel:int) -> pd.DataFrame:
                                         bounds = ([0, 0, 0, 0, -np.inf, 0], \
                                                 [np.inf, 10, np.inf, 1, np.inf, np.inf])
                                         )
-            fittedparameters[4] = fittedparameters[4] + wf_min
+            
+            red_chisqr_value = red_chisq(wf, pulse_template(x_values, *fittedparameters), \
+                                        fittedparameters)
+            
+            fittedparameters[4] = fittedparameters[4] + wf_min # gets back unshifted baseline
             fit_catalogue = fit_catalogue._append({
                                             'event_counter': clean_catalogue.iloc[clean_index]['event_counter'],
                                             wf_ch : wf,
-                                            'wf_real': wf + wf_min,
+                                            'wf_raw': wf + wf_min,
                                             'fit_param': fittedparameters,
-                                            'chisqr': red_chisq(wf, pulse_template(x_values, *fittedparameters), \
-                                                                                fittedparameters)
-                                                }, ignore_index=True) # type: ignore
+                                            'chisqr': red_chisqr_value,
+                                            }, ignore_index=True) # type: ignore
         except RuntimeError as e:
             fit_catalogue = fit_catalogue._append({   'fit_param': None,
                                                     'chisqr': None,
