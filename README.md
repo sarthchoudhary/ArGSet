@@ -19,7 +19,10 @@ Main Scripts:
     3. Makes Fingerplots from event catalogue generated after updating the ARMA parameters in Pyreco. 
 
 **Future:**\
-Re-organization of this repository will happen at some point.  
-- For the time being no new code should be added to Scripts/. It is quite messy due to Cython compiled code.
-- Move all old notebooks and scripts to Legacy/. 
-- All other notebooks are primarily for experimentation and/or documentation.
+Re-organization of this repository will happen at some point.
+- All files will be re-organized and put into folders a/c projects and not their file type.
+- For the time being no new code should be added to 'Scripts/'.
+- All Cython code will be moved to 'Legacy/cython_code'.
+- Rest of scripts will be moved to 'Legacy/'.
+- Rest of notebooks will be moved to 'Legacy/notebooks'.
+- Notebooks outside project related folders should only be for experimentation and/or documentation.
