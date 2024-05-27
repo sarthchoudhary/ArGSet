@@ -88,7 +88,7 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str, \
     ## TODO: compression for pickle files. https://stackoverflow.com/questions/57983431/whats-the-most-space-efficient-way-to-compress-serialized-python-data
     
     try:
-        output_filename = f"clean_catalogue_{file_basename}.pkl"
+        output_filename = f"clean_catalogue_custom_{file_basename}.pkl"
         clean_dict_path = path.join(output_folder, output_filename)
         with open(clean_dict_path, 'wb') as clean_dict_file:
             pickle.dump(clean_catalogue_dict, clean_dict_file, pickle.HIGHEST_PROTOCOL)
@@ -201,7 +201,7 @@ def fit_all_channels(clean_catalogue_dict: dict, file_config: dict, name_dict: d
     if not path.isdir(output_folder):
         os.mkdir(output_folder)
     try:
-        output_filename = f"fit_catalogue_{file_basename}.pkl"
+        output_filename = f"fit_catalogue_custom_{file_basename}.pkl"
         fit_dict_path = path.join(output_folder, output_filename)
         with open(fit_dict_path, 'wb') as fit_dict_file:
             pickle.dump(fit_catalogue_dict, fit_dict_file, pickle.HIGHEST_PROTOCOL)
@@ -285,15 +285,22 @@ def main(file_config: dict, ch_number_ls:list[int], plots_target:int, save_plots
     midas_data_folder = file_config['midas_data_folder']
     get_dataname = lambda filename: path.join(midas_data_folder, f'{filename}.mid.lz4')
     file_config['midas_data_filename'] = list(map(get_dataname, file_config['file_basename']))
-    outfile = 'temp_folder/temp_pyR00061_from_pickle'
+
+    # outfile = 'temp_folder/temp_pyR00061_from_pickle' #TODO: why is it static?
+
     # confile = 'argset.ini'
-    confile = 'argset.ini'
+    confile = 'argset_custom.ini'
 
     for file_index, event_catalogue_filename in enumerate(file_config['run_catalogue']):
         name_dict = {}
         name_dict['file_basename'] = file_config['file_basename'][file_index]
         midas_data_filename = file_config['midas_data_filename'][file_index]
         
+        temp_folder = file_config['temp_folder']
+        if not path.isdir(temp_folder):
+            os.mkdir(temp_folder)
+        outfile = f"{temp_folder}/{name_dict['file_basename']}_from_pickle"
+
         cmdline_args = f'--config {confile} -o {outfile} -i {midas_data_filename}'
         pyreco_manager = Manager( midas=True, cmdline_args=cmdline_args)
         
@@ -305,17 +312,20 @@ def main(file_config: dict, ch_number_ls:list[int], plots_target:int, save_plots
 
 if __name__ == "__main__":
      
+    file_config = {} ##TODO: This will be loaded from a separate config file.
+
     # run_catalogue = ['event_catalogue_run00061.pkl'] # diag
     run_catalogue = ['event_catalogue_run00052.pkl', 'event_catalogue_run00053.pkl', \
     'event_catalogue_run00054.pkl', 'event_catalogue_run00061.pkl', \
         'event_catalogue_run00062.pkl', 'event_catalogue_run00063.pkl']
-
-    file_config = {}
-    file_config['midas_data_folder'] = '/work/sarthak/ArgSet/2024_Mar_27/midas/'
-    file_config['output_folder']     = '/home/sarthak/my_projects/argset/output_folder' #TODO: this should be intrinsic to code
-    file_config['data_folder']       = '/home/sarthak/my_projects/argset/data'
+    
     file_config['run_catalogue']     = run_catalogue
+    
+    file_config['midas_data_folder'] = '/work/sarthak/ArgSet/2024_Mar_27/midas/'
+    # file_config['output_folder']     = '/home/sarthak/my_projects/argset/output_folder' #TODO: this should be intrinsic to code
+    file_config['output_folder']     = '/work/chuck/sarthak/argset/output_folder'
+    file_config['data_folder']       = '/home/sarthak/my_projects/argset/data'
+    file_config['temp_folder']       = '/work/chuck/sarthak/argset/temp_folder/'
 
-
-    main(file_config, ch_number_ls = [2], plots_target=20) # diag
+    main(file_config, ch_number_ls = [0, 1, 2], plots_target=1) # diag
     # main(file_config, ch_number_ls = [0, 1, 2], plots_target=10)
