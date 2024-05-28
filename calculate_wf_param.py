@@ -163,7 +163,7 @@ def fit_template(clean_catalogue:pd.DataFrame, n_channel:int) -> pd.DataFrame:
             red_chisqr_value = red_chisq(wf, pulse_template(x_values, *fittedparameters), \
                                         fittedparameters)
             
-            fittedparameters[4] = fittedparameters[4] + wf_min # gets back unshifted baseline
+            fittedparameters[4] = fittedparameters[4] + wf_min # undo baseline shift
             fit_catalogue = fit_catalogue._append({
                                             'event_counter': clean_catalogue.iloc[clean_index]['event_counter'],
                                             wf_ch : wf,
@@ -243,11 +243,11 @@ def plotter_all(fit_catalogue_dict: dict, ch_number_ls: list[int], \
             for plot_index in fit_catalogue.index.values:
                 if plot_counter < plots_target:
                     event_counter = fit_catalogue.loc[plot_index]['event_counter']
-                    wf = fit_catalogue.loc[plot_index][wf_ch]
+                    wf = fit_catalogue.loc[plot_index]['wf_raw']
                     x_values = np.arange(0, wf.shape[0])
                     plt.figure(plot_index, figsize=(8,6))
                     plt.title(f"{ch_str} data vs fit") 
-                    plt.plot(wf + np.abs(np.min(wf)), '.--', color='black', \
+                    plt.plot(wf, '.--', color='black', \
                                 label=f'data : {ch_str}')
                     fittedparameters = fit_catalogue.loc[plot_index]['fit_param']
                     plt.plot(pulse_template(x_values, *fittedparameters), \
@@ -314,10 +314,10 @@ if __name__ == "__main__":
      
     file_config = {} ##TODO: This will be loaded from a separate config file.
 
-    # run_catalogue = ['event_catalogue_run00061.pkl'] # diag
-    run_catalogue = ['event_catalogue_run00052.pkl', 'event_catalogue_run00053.pkl', \
-    'event_catalogue_run00054.pkl', 'event_catalogue_run00061.pkl', \
-        'event_catalogue_run00062.pkl', 'event_catalogue_run00063.pkl']
+    run_catalogue = ['event_catalogue_run00052.pkl'] # diag
+    # run_catalogue = ['event_catalogue_run00052.pkl', 'event_catalogue_run00053.pkl', \
+    # 'event_catalogue_run00054.pkl', 'event_catalogue_run00061.pkl', \
+    #     'event_catalogue_run00062.pkl', 'event_catalogue_run00063.pkl']
     
     file_config['run_catalogue']     = run_catalogue
     
@@ -327,5 +327,8 @@ if __name__ == "__main__":
     file_config['data_folder']       = '/home/sarthak/my_projects/argset/data'
     file_config['temp_folder']       = '/work/chuck/sarthak/argset/temp_folder/'
 
-    main(file_config, ch_number_ls = [0, 1, 2], plots_target=1) # diag
-    # main(file_config, ch_number_ls = [0, 1, 2], plots_target=10)
+    
+    # main(file_config, ch_number_ls = [0, 1, 2], plots_target=1)
+    # main(file_config, ch_number_ls = [0], plots_target=40) # diag
+    main(file_config, ch_number_ls = [0, 1, 2], plots_target=10)
+    
