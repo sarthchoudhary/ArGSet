@@ -1,5 +1,10 @@
 Data processing codes for ArGSet. 
 
+**About ArGSet**
+Argon Gas Setup for measurement of wavelength shifting materials at cryogenic temperature.
+\
+[Learn about ArGSet here](https://gitlab.camk.edu.pl/mkuzniak/cezamat/-/wikis/ArgSet)
+
 **Requirements**\
 To satify all requirements do these:
 1. rename jar_*.yml to jar.yml
