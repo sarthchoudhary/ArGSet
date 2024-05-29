@@ -320,12 +320,12 @@ if __name__ == "__main__":
         'event_catalogue_run00062.pkl', 'event_catalogue_run00063.pkl']
     
     file_config['run_catalogue']     = run_catalogue
-    
-    file_config['midas_data_folder'] = '/work/sarthak/argset/2024_Mar_27/midas/'
-    # file_config['output_folder']     = '/home/sarthak/my_projects/argset/output_folder' #TODO: this should be intrinsic to code
-    file_config['output_folder']     = '/work/chuck/sarthak/argset/output_folder'
+        
+    file_config['midas_data_folder'] = '/work/sarthak/argset/data/2024_Mar_27/midas/'
     # file_config['data_folder']       = '/home/sarthak/my_projects/argset/data'
     file_config['data_folder']       = '/work/sarthak/argset/data/event_catalogues'
+    # file_config['output_folder']     = '/home/sarthak/my_projects/argset/output_folder' #TODO: this should be intrinsic to code
+    file_config['output_folder']     = '/work/chuck/sarthak/argset/output_folder'
     file_config['temp_folder']       = '/work/chuck/sarthak/argset/temp_folder/'
     
     
