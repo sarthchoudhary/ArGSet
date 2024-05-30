@@ -14,6 +14,7 @@ from os import path
 from tqdm import trange, tqdm
 from termcolor import colored
 import pickle
+import yaml
 
 def find_clean_wfs( pyreco_manager, catalogue_filename:str, \
                    file_config: dict, name_dict:dict) -> dict[str, pd.DataFrame]: 
@@ -311,23 +312,14 @@ def main(file_config: dict, ch_number_ls:list[int], plots_target:int, save_plots
             plotter_all(fit_catalogue_dict, ch_number_ls, file_config, name_dict, plots_target)
 
 if __name__ == "__main__":
-     
-    file_config = {} ##TODO: This will be loaded from a separate config file.
 
-    # run_catalogue = ['event_catalogue_run00052.pkl'] # diag
-    run_catalogue = ['event_catalogue_run00052.pkl', 'event_catalogue_run00053.pkl', \
-    'event_catalogue_run00054.pkl', 'event_catalogue_run00061.pkl', \
-        'event_catalogue_run00062.pkl', 'event_catalogue_run00063.pkl']
-    
-    file_config['run_catalogue']     = run_catalogue
-        
-    file_config['midas_data_folder'] = '/work/sarthak/argset/data/2024_Mar_27/midas/'
-    # file_config['data_folder']       = '/home/sarthak/my_projects/argset/data'
-    file_config['data_folder']       = '/work/sarthak/argset/data/event_catalogues'
-    # file_config['output_folder']     = '/home/sarthak/my_projects/argset/output_folder' #TODO: this should be intrinsic to code
-    file_config['output_folder']     = '/work/chuck/sarthak/argset/output_folder'
-    file_config['temp_folder']       = '/work/chuck/sarthak/argset/temp_folder/'
-    
+    analysis_config_file = '/home/sarthak/my_projects/argset/argset_analysis_config.yaml'
+
+    with open(analysis_config_file) as handle:
+        try:
+            file_config = yaml.safe_load(handle)
+        except yaml.YAMLError as exc:
+            print(exc)    
     
     # main(file_config, ch_number_ls = [0, 1, 2], plots_target=1)
     # main(file_config, ch_number_ls = [0], plots_target=40) # diag

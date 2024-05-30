@@ -1,0 +1,13 @@
+---
+run_catalogue : 
+- 'event_catalogue_run00052.pkl'
+- 'event_catalogue_run00053.pkl'
+- 'event_catalogue_run00054.pkl'
+- 'event_catalogue_run00061.pkl'
+- 'event_catalogue_run00062.pkl'
+- 'event_catalogue_run00063.pkl'
+    
+midas_data_folder : '/work/sarthak/argset/data/2024_Mar_27/midas/'
+data_folder       : '/work/sarthak/argset/data/event_catalogues/'
+output_folder     : '/work/chuck/sarthak/argset/output_folder/'
+temp_folder       : '/work/chuck/sarthak/argset/temp_folder/'
