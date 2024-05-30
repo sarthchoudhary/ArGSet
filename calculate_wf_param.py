@@ -68,7 +68,7 @@ def find_clean_wfs( pyreco_manager, catalogue_filename:str, \
                     'event_counter': event_index+1,
                     wf_str_ls[ch]: og_wf[ch],
                     peak_str_ls[ch]: np.ceil(np.mean(np.where(flt_above_3rms[ch] != 0))),
-                    # prefers to take ceiling value over floor
+                    # I prefer to take ceiling value over floor
                 }
 
                 if ch == 0: #TODO: replace with match-case https://www.freecodecamp.org/news/python-switch-statement-switch-case-example/
@@ -233,8 +233,6 @@ def plotter_all(fit_catalogue_dict: dict, ch_number_ls: list[int], \
 
         if not path.isdir(output_folder):
             os.mkdir(output_folder)
-
-        # x_values = np.arange(0, 1750) # TODO: dynamic
         
         print(colored(f"Commence plotting: {ch_str}...", 'green', attrs = ['blink', 'bold']))
         plots_target = min(plots_target, fit_catalogue.shape[0])
@@ -262,7 +260,6 @@ def plotter_all(fit_catalogue_dict: dict, ch_number_ls: list[int], \
                     output_filename = f"midas_{file_basename}_{ch_str}_{int(event_counter)}.pdf"
                     output_filename = path.join(output_folder, output_filename)
                     plt.savefig(output_filename)
-                    # plt.savefig(f'temp_folder/midas_wf_{ch_str}_{event_counter}.pdf')
                     plt.close()
                     plot_counter +=1
                     pbar.update(1)
@@ -286,8 +283,6 @@ def main(file_config: dict, ch_number_ls:list[int], plots_target:int, save_plots
     midas_data_folder = file_config['midas_data_folder']
     get_dataname = lambda filename: path.join(midas_data_folder, f'{filename}.mid.lz4')
     file_config['midas_data_filename'] = list(map(get_dataname, file_config['file_basename']))
-
-    # outfile = 'temp_folder/temp_pyR00061_from_pickle' #TODO: why is it static?
 
     # confile = 'argset.ini'
     confile = 'argset_custom.ini'
