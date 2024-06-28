@@ -18,12 +18,6 @@ To satify all requirements do these:
 wf search script consumes a lot of computing resources, it should only be executed on an interactive node or submitted as a slurm job.\
 <span style="color: yellow"> Warning: </span> The code probably won't be able to complete execution on a login node. This is your only warning!
 
-**Computing resources:**\
-wf search script consumes a lot of computing resources, it should only be executed on an interactive node or submitted as a slurm job.
-
-**Computing resources:**\
-wf search script consumes a lot of computing resources, it should only be executed on an interactive node or submitted as a slurm job.
-
 **Data Processing:**\
 There are several tools available for data processing:
 - create_event_catalogue.py\
