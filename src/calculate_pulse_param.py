@@ -308,7 +308,7 @@ def main(file_config: dict, ch_number_ls:list[int], plots_target:int, save_plots
 
 if __name__ == "__main__":
 
-    analysis_config_file = '/home/sarthak/my_projects/argset/argset_analysis_config.yaml'
+    analysis_config_file = 'argset_analysis_config.yaml'
 
     with open(analysis_config_file) as handle:
         try:
